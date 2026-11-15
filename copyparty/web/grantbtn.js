@@ -1,7 +1,8 @@
 "use strict";
 
 // fork-only: the "grant" button beside "share" in the file browser; see FORK.md.
-// Loaded with --js-browser /.cpr/w/grantbtn.js so upstream's browser.js stays as it is.
+// Loaded by fork-browser.js (--js-browser /.cpr/w/fork-browser.js), or directly with
+// --js-browser /.cpr/w/grantbtn.js, so upstream's browser.js stays as it is.
 // Shown for the current folder, or for exactly one selected folder, when grants are on.
 
 (function () {

@@ -69,8 +69,9 @@ class TestForkGrants(unittest.TestCase):
         h, b = self.conn.s._reply.split(b"\r\n\r\n", 1)
         return int(h.split(b" ", 2)[1]), b
 
-    def load_splash(self):
+    def load_splash(self, name="splash"):
         # the test http server has no templates; give it the control panel's
+        # (or the one named)
         import jinja2
 
         from copyparty.__init__ import E
@@ -78,7 +79,7 @@ class TestForkGrants(unittest.TestCase):
 
         env = jinja2.Environment()
         env.loader = jinja2.FunctionLoader(lambda f: load_jinja2_resource(E, f))
-        self.conn.hsrv.j2["splash"] = env.get_template("splash.html")
+        self.conn.hsrv.j2[name] = env.get_template(name + ".html")
 
     def get(self, url, uname):
         return self.req("GET", url, uname)
@@ -1296,13 +1297,32 @@ class TestForkGrants(unittest.TestCase):
         self.assertEqual(self.rcpts("alice")[1]["top"], "shared")
 
     def test_grant_button_script_is_served(self):
-        # loaded with --js-browser /.cpr/w/grantbtn.js; harden refuses dot
+        # loaded by fork-browser.js (or --js-browser); harden refuses dot
         # paths and no-html serves html as text, neither may touch it
         self.cinit(harden=True, no_html=True)
         for un in ("alice", "*"):
             st, b = self.get(".cpr/w/grantbtn.js", un)
             self.assertEqual(st, 200, un)
             self.assertIn(b"?grants=rcpts", b, un)
+
+    def test_browser_script_loader_is_served(self):
+        # loaded with --js-browser /.cpr/w/fork-browser.js; it loads grantbtn.js
+        self.cinit(harden=True, no_html=True)
+        for un in ("alice", "*"):
+            st, b = self.get(".cpr/w/fork-browser.js", un)
+            self.assertEqual(st, 200, un)
+            self.assertIn(b"'grantbtn.js'", b, un)
+
+    def test_file_browser_tag_the_loader_relies_on(self):
+        # fork-browser.js copies its own nonce and ?_= query onto every
+        # script it loads; if upstream drops either from the {{ js }} tag,
+        # the loaded scripts are blocked by the csp or cached stale
+        self.cinit(js_browser="/.cpr/w/fork-browser.js")
+        self.load_splash("browser")
+        st, b = self.req("GET", "home/alice/", "alice", "User-Agent: Mozilla/5.0\r\n")
+        self.assertEqual(st, 200, b)
+        zb = br'<script nonce="[^"]+" src="/\.cpr/w/fork-browser\.js\?_=[^"]+">'
+        self.assertTrue(re.search(zb, b), b)
 
     def test_control_panel_script_is_served(self):
         # loaded with --js-other /.cpr/w/ctlpanel.js on every non-browser page
