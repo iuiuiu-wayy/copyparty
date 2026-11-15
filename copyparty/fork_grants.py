@@ -30,8 +30,9 @@ if True:  # pylint: disable=using-constant-test
         from .svchub import SvcHub
 
 # the fork's web files: the grants page, the grant button, the file-browser script loader
-# (fork-browser.js), the file list's row checkboxes (rowsel.js), drag to move (dragmove.js)
-# and the control panel tidy-up (ctlpanel.js); registered here so upstream's list in __init__ stays as it is
+# (fork-browser.js), the file list's row checkboxes (rowsel.js), the account box's control
+# panel link (acclink.js), drag to move (dragmove.js) and the control panel tidy-up
+# (ctlpanel.js); registered here so upstream's list in __init__ stays as it is
 RES.update(
     (
         "web/grants.html",
@@ -39,6 +40,7 @@ RES.update(
         "web/grantbtn.js",
         "web/fork-browser.js",
         "web/rowsel.js",
+        "web/acclink.js",
         "web/dragmove.js",
         "web/ctlpanel.js",
     )

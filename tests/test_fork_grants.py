@@ -1411,6 +1411,33 @@ class TestForkGrants(unittest.TestCase):
         ):
             self.assertIn(zb, js)
 
+    def test_account_link_script_is_served(self):
+        # loaded by fork-browser.js; the control panel link next to logout
+        self.cinit(harden=True, no_html=True)
+        for un in ("alice", "*"):
+            st, b = self.get(".cpr/w/acclink.js", un)
+            self.assertEqual(st, 200, un)
+            self.assertIn(b"SR + '/?h'", b, un)
+        st, b = self.get(".cpr/w/fork-browser.js", "alice")
+        self.assertIn(b"'acclink.js'", b)
+
+    def test_browser_names_the_account_link_relies_on(self):
+        # acclink.js wraps the global apply_perms (which rebuilds #acc_info,
+        # with the logout form #flogout), reads acct, SR, L.goh, fullui and
+        # sloc0, and hides itself like upstream hides #goh for ui_nocpla
+        with open(os.path.join(WEB, "browser.js"), "rb") as f:
+            js = f.read()
+        for zb in (
+            b"function apply_perms(res)",
+            b"apply_perms(res);",
+            b"ebi('acc_info').innerHTML",
+            b'<form id="flogout"',
+            b'"goh": "control-panel"',
+            b"fullui = /[?&]fullui\\b/.exec(sloc0)",
+            b"if (window.ui_nocpla || /[?&]nocpla\\b/.exec(sloc0)) x += '#goh,';",
+        ):
+            self.assertIn(zb, js)
+
     def test_control_panel_script_is_served(self):
         # loaded with --js-other /.cpr/w/ctlpanel.js on every non-browser page
         self.cinit(harden=True, no_html=True)
@@ -1431,6 +1458,38 @@ class TestForkGrants(unittest.TestCase):
         for zb in (b'id="af"', b'id="y"', b'id="yg"', b'id="k"', b'<form ', b'id="lo"'):
             self.assertIn(zb, sec.group(1))
         self.assertIn(b'id="repl"', b)
+
+    def test_control_panel_has_the_ids_the_password_form_uses(self):
+        # ctlpanel.js shows its change-password form only where #x is, puts it
+        # between #m's paragraph and #l, posts to #lf's action, and sends uname
+        # (#un's text) when #lu is there; an upstream rename would hide the form
+        # or post without a username
+        for chpw in (True, False):
+            for usernames in (True, False):
+                if os.path.exists("s.db"):
+                    os.unlink("s.db")
+                self.cinit_shr(chpw=chpw, usernames=usernames)
+                self.load_splash()
+                # with usernames, the PW header is user:password
+                st, b = self.get("?h", "alice:alice" if usernames else "alice")
+                self.assertEqual(st, 200, b)
+                t = (chpw, usernames)
+                # the form goes right after the paragraph holding #m and #un
+                m = re.search(br'<p><span id="m">[^<]*</span> <strong id="un">alice</strong></p>', b)
+                self.assertTrue(m, t)
+                self.assertIn(b'<h1 id="l">', b[m.end() :], t)
+                lf = re.search(br'<form id="lf" [^>]*action="([^"]*)"(.*?)</form>', b, re.S)
+                self.assertTrue(lf, t)
+                self.assertEqual(lf.group(1), b"/", t)
+                self.assertEqual(b'id="x"' in lf.group(2), chpw, t)
+                self.assertEqual(b'id="lu"' in lf.group(2), usernames, t)
+
+    def test_control_panel_password_form_is_served(self):
+        self.cinit(harden=True, no_html=True)
+        st, b = self.get(".cpr/w/ctlpanel.js", "alice")
+        self.assertEqual(st, 200)
+        for zb in (b"change password:", b"repeat new password", b"new-password", b"chpw"):
+            self.assertIn(zb, b)
 
     def test_recipient_list_without_share_link_passwords(self):
         self.cinit_shr()
