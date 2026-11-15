@@ -27,7 +27,12 @@ python3 -m venv .venv && .venv/bin/pip install jinja2 strip_hints   # .venv is g
 ./scripts/run-tests.sh          # what the pre-commit hook runs: copies to ./unt, strips type hints,
                                 # runs unittest on python2+3, plus smoketest and redup
 ./scripts/make-sfx.sh fast      # build the single-file copyparty-sfx.py
+./scripts/fork-sfx.sh           # same, from a clean temp copy: make-sfx.sh in place stops on
+                                # copyparty/.mypy_cache and missing webdeps
 ```
+
+Manual browser check of a fork script (login, `rp-loc`, cookie traps): read
+[docs/fork-manual-check.md](./docs/fork-manual-check.md) first.
 
 `run-tests.sh` exports `PRTY_NO_VIPS=1`; do the same if libvips is installed and tests misbehave.
 Lint config lives in `pyproject.toml` (black 21.12b0, isort, ruff line 120, pylint, strict mypy).
