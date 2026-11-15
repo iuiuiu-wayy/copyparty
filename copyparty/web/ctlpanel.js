@@ -1,6 +1,7 @@
 "use strict";
 
-// fork-only: trims the control panel's "other stuff" section and hides the π link; see FORK.md.
+// fork-only: trims the control panel's "other stuff" section, hides the π link and adds a
+// change-password form; see FORK.md.
 // Loaded with --js-other /.cpr/w/ctlpanel.js, so it runs on every page except the file browser,
 // after the page's own scripts (splash.js has already set the translated labels, so ours stick).
 // The file browser gets --js-other too when --js-browser is empty; there it only hides the π.
@@ -17,6 +18,103 @@
 
     var head = ebi('cc'),             // the "other stuff:" heading
         list = head && head.nextElementSibling;
+
+    if (head)
+        chpwForm();
+
+    // upstream changes your password through the login box: type the new one into #lp, then
+    // click the small #x link; Enter or "login" there logs you out instead. This puts a form
+    // of its own under "welcome back" and hides #x. #x is only on the page when chpw is on,
+    // someone is logged in and it's not a share, so its presence is what shows the form.
+    // The post is what #x sends (act=chpw, uname with --usernames, pw) to #lf's action;
+    // handle_chpw answers with the msg page. It asks for no old password, as upstream.
+    function chpwForm() {
+        var x = ebi('x'),
+            lf = ebi('lf'),
+            un = ebi('un'),
+            hi = un && un.parentNode;   // the "welcome back, <name>" paragraph
+
+        if (!x || !lf || !hi || !hi.parentNode)
+            return;
+
+        x.style.display = 'none';
+
+        function mk(tag, attrs) {
+            var el = document.createElement(tag);
+            for (var k in attrs)
+                if (attrs.hasOwnProperty(k))
+                    el.setAttribute(k, attrs[k]);
+            return el;
+        }
+
+        var h1 = mk('h1', { id: 'fork_cph' });
+        h1.textContent = 'change password:';
+
+        var form = mk('form', {
+            id: 'fork_cpf',
+            method: 'post',
+            enctype: 'multipart/form-data',
+            action: lf.getAttribute('action')
+        });
+        form.appendChild(mk('input', { type: 'hidden', name: 'act', value: 'chpw' }));
+        if (ebi('lu'))
+            form.appendChild(mk('input', { type: 'hidden', name: 'uname', value: un.textContent }));
+
+        var pw1 = mk('input', {
+            type: 'password', name: 'pw', autocomplete: 'new-password',
+            placeholder: ' new password', 'aria-label': 'new password', size: 20
+        });
+        // no name: the repeat stays in the browser
+        var pw2 = mk('input', {
+            type: 'password', autocomplete: 'new-password',
+            placeholder: ' repeat new password', 'aria-label': 'repeat new password', size: 20
+        });
+        var msg = mk('div', { id: 'fork_cpm' });
+
+        form.appendChild(pw1);
+        form.appendChild(document.createTextNode(' '));
+        form.appendChild(pw2);
+        form.appendChild(document.createTextNode(' '));
+        form.appendChild(mk('input', { type: 'submit', value: 'change password' }));
+        form.appendChild(msg);
+
+        // the server reads at most 64 bytes of pw; count utf-8 bytes, not characters
+        function nbytes(s) {
+            return unescape(encodeURIComponent(s)).length;
+        }
+
+        form.onsubmit = function (e) {
+            var a = pw1.value,
+                b = pw2.value,
+                err = '',
+                bad = pw1;
+
+            if (!a || !b) {
+                err = 'type the new password in both boxes';
+                bad = a ? pw2 : pw1;
+            }
+            else if (a !== b) {
+                err = 'the two passwords are not the same';
+                bad = pw2;
+            }
+            else if (nbytes(a) > 64)
+                err = 'too long; at most 64 characters';
+
+            msg.textContent = err;
+            if (!err)
+                return true;
+
+            if (e && e.preventDefault)
+                e.preventDefault();
+            bad.focus();
+            return false;
+        };
+
+        var div = document.createElement('div');
+        div.appendChild(form);
+        hi.parentNode.insertBefore(div, hi.nextSibling);
+        hi.parentNode.insertBefore(h1, div);
+    }
 
     if (!list || !/\bagr\b/.test(list.className))
         return;

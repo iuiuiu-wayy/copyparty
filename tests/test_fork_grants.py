@@ -1381,6 +1381,38 @@ class TestForkGrants(unittest.TestCase):
             self.assertIn(zb, sec.group(1))
         self.assertIn(b'id="repl"', b)
 
+    def test_control_panel_has_the_ids_the_password_form_uses(self):
+        # ctlpanel.js shows its change-password form only where #x is, puts it
+        # between #m's paragraph and #l, posts to #lf's action, and sends uname
+        # (#un's text) when #lu is there; an upstream rename would hide the form
+        # or post without a username
+        for chpw in (True, False):
+            for usernames in (True, False):
+                if os.path.exists("s.db"):
+                    os.unlink("s.db")
+                self.cinit_shr(chpw=chpw, usernames=usernames)
+                self.load_splash()
+                # with usernames, the PW header is user:password
+                st, b = self.get("?h", "alice:alice" if usernames else "alice")
+                self.assertEqual(st, 200, b)
+                t = (chpw, usernames)
+                # the form goes right after the paragraph holding #m and #un
+                m = re.search(br'<p><span id="m">[^<]*</span> <strong id="un">alice</strong></p>', b)
+                self.assertTrue(m, t)
+                self.assertIn(b'<h1 id="l">', b[m.end() :], t)
+                lf = re.search(br'<form id="lf" [^>]*action="([^"]*)"(.*?)</form>', b, re.S)
+                self.assertTrue(lf, t)
+                self.assertEqual(lf.group(1), b"/", t)
+                self.assertEqual(b'id="x"' in lf.group(2), chpw, t)
+                self.assertEqual(b'id="lu"' in lf.group(2), usernames, t)
+
+    def test_control_panel_password_form_is_served(self):
+        self.cinit(harden=True, no_html=True)
+        st, b = self.get(".cpr/w/ctlpanel.js", "alice")
+        self.assertEqual(st, 200)
+        for zb in (b"change password:", b"repeat new password", b"new-password", b"chpw"):
+            self.assertIn(zb, b)
+
     def test_recipient_list_without_share_link_passwords(self):
         self.cinit_shr()
         self.assertEqual(self.share("/home/alice/proj/", pw="sharepw")[0], 201)
