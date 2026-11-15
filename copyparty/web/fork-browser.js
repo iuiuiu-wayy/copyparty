@@ -10,6 +10,7 @@
     var SCRIPTS = [
         'grantbtn.js',
         'rowsel.js',
+        'dragmove.js',
     ];
 
     var me = document.currentScript;

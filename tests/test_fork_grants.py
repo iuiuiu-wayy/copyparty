@@ -1360,6 +1360,57 @@ class TestForkGrants(unittest.TestCase):
         ):
             self.assertIn(zb, js)
 
+    def test_drag_move_script_is_served(self):
+        # loaded by fork-browser.js; drag rows onto a folder to move them
+        self.cinit(harden=True, no_html=True)
+        for un in ("alice", "*"):
+            st, b = self.get(".cpr/w/dragmove.js", un)
+            self.assertEqual(st, 200, un)
+            self.assertIn(b"'?move='", b, un)
+        st, b = self.get(".cpr/w/fork-browser.js", "alice")
+        self.assertIn(b"'dragmove.js'", b)
+
+    def test_browser_names_drag_move_relies_on(self):
+        # dragmove.js reads the selection through msel, sends paste's move
+        # request with its abort key, refreshes through treectl and tells
+        # other tabs through fileman, finds tree folders and breadcrumbs by
+        # their markup, and keeps up2k's body-level drag handlers away from
+        # a move-drag; an upstream rename there breaks dragging silently
+        with open(os.path.join(WEB, "browser.js"), "rb") as f:
+            js = f.read()
+        for zb in (
+            b"var msel = (function",
+            b"r.getall = function",
+            b"r.getsel = function",
+            b"function tr2id(tr)",
+            b"item.isd = true;",
+            b"var fileman = (function",
+            b"r.tx = function (msg)",
+            b"act = r.ccp ? '?copy=' : '?move=',",
+            b"'&akey=' + abrt_key",
+            b"'/?fs_abrt=' + abrt_key",
+            b"var treectl = (function",
+            b"r.goto = function",
+            b"QSA('#treeul li>a+a')",
+            b"ebi('path').onclick = function",
+            b"perms = res.perms || [];",
+            b"hcut = !(have_mv && has(perms, 'move'))",
+            b"var thegrid = (function",
+            b"bcfg_bind(r, 'en', 'griden'",
+            b'id="unsearch"',
+        ):
+            self.assertIn(zb, js)
+        with open(os.path.join(WEB, "up2k.js"), "rb") as f:
+            js = f.read()
+        for zb in (
+            b"document.body.ondragenter = ondrag;",
+            b"document.body.ondragleave = offdrag;",
+            b"document.body.ondragover = onover;",
+            b"document.body.ondrop = gotfile;",
+            b"return toast.inf(10, L.u_uri) || true;",
+        ):
+            self.assertIn(zb, js)
+
     def test_control_panel_script_is_served(self):
         # loaded with --js-other /.cpr/w/ctlpanel.js on every non-browser page
         self.cinit(harden=True, no_html=True)
