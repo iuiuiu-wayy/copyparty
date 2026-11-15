@@ -16,6 +16,8 @@ from datetime import datetime
 from .__init__ import ANYWIN, CFG_DEF, MACOS, PY2, TYPE_CHECKING, WINDOWS, E
 from .bos import bos
 from .cfg import flagdescs, permdescs, vf_bmap, vf_cmap, vf_vmap
+from .fork_grants import mount_grants
+from .fork_harden import harden_vfs, purge_ownerless_shares
 from .pwhash import PWHash
 from .util import (
     DEF_MTE,
@@ -2062,6 +2064,8 @@ class AuthSrv(object):
             cur = db.cursor()
             cur2 = db.cursor()
             now = time.time()
+            pw2u = {v.strip(): k for k, v in acct.items()}  # fork-only: share-pw == account-pw
+            purge_ownerless_shares(self.args, db, acct, self.log)  # fork
             for row in cur.execute("select * from sh"):
                 s_k, s_pw, s_vp, s_pr, s_nf, s_un, s_t0, s_t1 = row
                 if s_t1 and s_t1 < now:
@@ -2071,7 +2075,10 @@ class AuthSrv(object):
                     t = "loading %s share %r by %r => %r"
                     self.log(t % (s_pr, s_k, s_un, s_vp))
 
-                if s_pw:
+                if s_pw and s_pw.strip() in pw2u:  # fork
+                    # that pw logs in as this account; grant the share to it
+                    sun = pw2u[s_pw.strip()]
+                elif s_pw:
                     # gotta reuse the "account" for all shares with this pw,
                     # so do a light scramble as this appears in the web-ui
                     zb = hashlib.sha512(s_pw.encode("utf-8")).digest()
@@ -3088,6 +3095,8 @@ class AuthSrv(object):
                 for name in vol.axs.uread:
                     vol.axs.udot.add(name)
 
+        harden_vfs(self.args, vfs)  # fork: after the dots volflag sets udot
+
         zi = 1
         zs = "; you must also enable --hack-me-bro to accept the total loss of security"
         if self.args.hack_me_bro:
@@ -3567,6 +3576,8 @@ class AuthSrv(object):
             zs = str(vol.flags.get("tcolor") or self.args.tcolor)
             vol.flags["tcolor"] = zs.lstrip("#")
 
+        mount_grants(self, vfs, acct)  # fork: last, once all volumes are final
+
     def setup_auth_ord(self) -> None:
         ao = [x.strip() for x in self.args.auth_ord.split(",")]
         if "idp" in ao:
@@ -3990,7 +4001,7 @@ class AuthSrv(object):
             "",
         ]
 
-        csv = set("i p zm_on zm_off zs_on zs_off".split())
+        csv = set("i p shr_adm zm_on zm_off zs_on zs_off".split())
         zs = "c ihead ohead mtm mtp on403 on404 xac xad xar xau xiu xban xbc xbd xbr xbu xm"
         lst = set(zs.split())
         askip = set("a v c vc cgen exp_lg exp_md theme".split())

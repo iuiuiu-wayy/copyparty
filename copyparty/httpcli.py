@@ -35,6 +35,8 @@ from .__init__ import ANYWIN, PY2, RES, RESM, TYPE_CHECKING, EnvParams, unicode
 from .__version__ import S_VERSION
 from .authsrv import LEELOO_DALLAS, VFS  # typechk
 from .bos import bos
+from .fork_grants import handle_egrant, handle_grant, http_request, tx_grants
+from .fork_harden import refuse_dot_name, refuse_short_key
 from .qrkode import qr2svg, qrgen
 from .star import StreamTar
 from .sutil import StreamArc, gfilter
@@ -913,6 +915,8 @@ class HttpCli(object):
         self.avn = avn
         self.vn = vn  # note: do not dbv due to walk/zipgen
         self.rem = rem
+        if http_request(self):  # fork
+            return self.tx_404() and False
 
         self.s.settimeout(self.args.s_tbody or None)
 
@@ -1567,6 +1571,9 @@ class HttpCli(object):
 
             if "shares" in self.uparam:
                 return self.tx_shares()
+
+            if "grants" in self.uparam:
+                return tx_grants(self)  # fork
 
             if "dls" in self.uparam:
                 return self.tx_dls()
@@ -2513,6 +2520,9 @@ class HttpCli(object):
         if "eshare" in self.uparam:
             return self.handle_eshare()
 
+        if "egrant" in self.uparam:
+            return handle_egrant(self)  # fork
+
         if "fs_abrt" in self.uparam:
             return self.handle_fs_abrt()
 
@@ -3214,6 +3224,9 @@ class HttpCli(object):
         if "share" in self.uparam:
             return self.handle_share(body)
 
+        if "grant" in self.uparam:
+            return handle_grant(self, body)  # fork
+
         if "delete" in self.uparam:
             return self.handle_rm(body)
 
@@ -3229,6 +3242,7 @@ class HttpCli(object):
 
         vfs, rem = self.asrv.vfs.get(vpath, self.uname, False, True)
         name = vfs.sanitize_fn(name, rem)
+        refuse_dot_name(self.args, vfs, self.uname, name)  # fork
         dbv, vrem = vfs.get_dbv(rem)
 
         if (
@@ -6621,7 +6635,7 @@ class HttpCli(object):
         rows = cur.execute("select * from sh").fetchall()
         rows = [list(x) for x in rows]
 
-        if self.uname != self.args.shr_adm:
+        if self.uname not in self.args.shr_adm:
             rows = [x for x in rows if x[5] == self.uname]
 
         q = "select vp from sf where k=? limit 99"
@@ -6675,7 +6689,7 @@ class HttpCli(object):
 
         expiry = rows[0][1]
 
-        if un != self.uname and self.uname != self.args.shr_adm:
+        if un != self.uname and self.uname not in self.args.shr_adm:
             t = "your username (%r) does not match the sharekey's owner (%r) and you're not admin"
             raise Pebkac(400, t % (self.uname, un))
 
@@ -6740,6 +6754,7 @@ class HttpCli(object):
         m = re.search(r"([^0-9a-zA-Z_-])", skey)
         if m:
             raise Pebkac(400, "sharekey has illegal character %r" % (m[1],))
+        refuse_short_key(self.args, skey)  # fork
 
         if vp.startswith(self.args.shr1):
             raise Pebkac(400, "yo dawg...")

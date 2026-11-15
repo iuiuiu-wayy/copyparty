@@ -1478,6 +1478,8 @@ def add_share(ap):
     ap2.add_argument("--shr-rt", metavar="MIN", type=int, default=1440, help="shares can be revived by their owner if they expired less than MIN minutes ago; [\033[32m60\033[0m]=hour, [\033[32m1440\033[0m]=day, [\033[32m10080\033[0m]=week")
     ap2.add_argument("--shr-site", metavar="URL", type=u, default="--site", help="public URL to assume when creating share-links; example: [\033[32mhttps://example.com/\033[0m]")
     ap2.add_argument("--shr-v", action="store_true", help="debug")
+    ap2.add_argument("--grants", metavar="DIR", type=u, default="", help="[fork] toplevel virtual folder where accounts find the folders other accounts granted them, for example [\033[32m/shared\033[0m]; empty = grants off")
+    ap2.add_argument("--grants-db", metavar="FILE", type=u, default=os.path.join(E.cfg, "grants.db"), help="[fork] database to store grants in")
 
 
 def add_upload(ap):
@@ -1886,6 +1888,7 @@ def add_safety(ap):
     ap2.add_argument("-s", action="count", default=0, help="increase safety: Disable thumbnails / potentially dangerous software (ffmpeg/pillow/vips), hide partial uploads, avoid crawlers.\n └─Alias of\033[32m --dotpart --no-thumb --no-mtag-ff --no-robots --force-js")
     ap2.add_argument("-ss", action="store_true", help="further increase safety: Prevent js-injection, accidental move/delete, broken symlinks, webdav requires login, 404 on 403, ban on excessive 404s.\n └─Alias of\033[32m -s --no-html --no-readme --no-logues --unpost=0 --no-del --no-mv --reflink --dav-auth --vague-403 -nih")
     ap2.add_argument("-sss", action="store_true", help="further increase safety: Enable logging to disk, scan for dangerous symlinks.\n └─Alias of\033[32m -ss --no-dav --no-logues --no-readme -lo=cpp-%%Y-%%m%%d-%%H%%M%%S.txt.xz --ls=**,*,ln,p,r")
+    ap2.add_argument("--harden", action="store_true", help="[fork] dotfiles inside a volume give 404 to users without the \033[33m.\033[0m permission there (all protocols); mount points named with a dot stay reachable; share links: never dotfiles, no README.md/PREADME.md/descript.ion uploads, keys of 12+ characters, links of deleted accounts deleted at reload")
     ap2.add_argument("--ls", metavar="U[,V[,F]]", type=u, default="", help="do a sanity/safety check of all volumes on startup; arguments \033[33mUSER\033[0m,\033[33mVOL\033[0m,\033[33mFLAGS\033[0m (see \033[33m--help-ls\033[0m); example [\033[32m**,*,ln,p,r\033[0m]")
     ap2.add_argument("--xvol", action="store_true", help="never follow symlinks leaving the volume root, unless the link is into another volume where the user also has access (keeps permissions from the outer/initial volume) (volflag=xvol)")
     ap2.add_argument("--xdev", action="store_true", help="stay within the filesystem of the volume root; do not descend into other devices (symlink or bind-mount to another HDD, ...) (volflag=xdev)")

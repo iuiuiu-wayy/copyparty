@@ -42,6 +42,8 @@ from .__version__ import S_VERSION, VERSION
 from .authsrv import BAD_CFG, AuthSrv, derive_args, n_du_who, n_ver_who
 from .bos import bos
 from .cert import ensure_cert
+from .fork_grants import start_expiry_timer
+from .fork_util import split_names
 from .fsutil import ramdisk_chk
 from .mtag import HAVE_FFMPEG, HAVE_FFPROBE, HAVE_MUTAGEN, TH_BWRAP
 from .pwhash import HAVE_ARGON2
@@ -299,6 +301,7 @@ class SvcHub(object):
             args.no_fpool = True
 
         args.p_nodav = [int(x.strip()) for x in args.p_nodav.split(",") if x]
+        args.shr_adm = split_names(args.shr_adm)
         if args.dav_port and args.dav_port not in args.p:
             args.p.append(args.dav_port)
 
@@ -1549,6 +1552,7 @@ class SvcHub(object):
 
     def run(self) -> None:
         self.tcpsrv.run()
+        start_expiry_timer(self)  # fork
         if getattr(self.args, "z_chk", 0) and (
             getattr(self.args, "zm", False) or getattr(self.args, "zs", False)
         ):
