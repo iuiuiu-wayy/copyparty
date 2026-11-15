@@ -69,6 +69,17 @@ class TestForkGrants(unittest.TestCase):
         h, b = self.conn.s._reply.split(b"\r\n\r\n", 1)
         return int(h.split(b" ", 2)[1]), b
 
+    def load_splash(self):
+        # the test http server has no templates; give it the control panel's
+        import jinja2
+
+        from copyparty.__init__ import E
+        from copyparty.httpsrv import load_jinja2_resource
+
+        env = jinja2.Environment()
+        env.loader = jinja2.FunctionLoader(lambda f: load_jinja2_resource(E, f))
+        self.conn.hsrv.j2["splash"] = env.get_template("splash.html")
+
     def get(self, url, uname):
         return self.req("GET", url, uname)
 
@@ -243,17 +254,10 @@ class TestForkGrants(unittest.TestCase):
 
     def test_control_panel_without_the_grants_option(self):
         # upstream's test Cfg has no `grants`; its control panel must still render
-        import jinja2
-
-        from copyparty.__init__ import E
-        from copyparty.httpsrv import load_jinja2_resource
-
         self.args = Cfg(a=ACCS, v=["a:home/alice:A,alice"])
         self.assertFalse(hasattr(self.args, "grants"))
         self.reload()
-        env = jinja2.Environment()
-        env.loader = jinja2.FunctionLoader(lambda f: load_jinja2_resource(E, f))
-        self.conn.hsrv.j2["splash"] = env.get_template("splash.html")
+        self.load_splash()
         st, b = self.get("?h", "alice")
         self.assertEqual(st, 200, b)
         self.assertIn(b'<strong id="un">alice</strong>', b)
@@ -1299,6 +1303,27 @@ class TestForkGrants(unittest.TestCase):
             st, b = self.get(".cpr/w/grantbtn.js", un)
             self.assertEqual(st, 200, un)
             self.assertIn(b"?grants=rcpts", b, un)
+
+    def test_control_panel_script_is_served(self):
+        # loaded with --js-other /.cpr/w/ctlpanel.js on every non-browser page
+        self.cinit(harden=True, no_html=True)
+        for un in ("alice", "*"):
+            st, b = self.get(".cpr/w/ctlpanel.js", un)
+            self.assertEqual(st, 200, un)
+            self.assertIn(b"recently added files", b, un)
+
+    def test_control_panel_has_the_ids_the_script_moves(self):
+        # ctlpanel.js finds upstream's entries by id; an upstream rename
+        # would silently leave that entry unmoved or unhidden
+        self.cinit_shr()
+        self.load_splash()
+        st, b = self.get("?h", "alice")
+        self.assertEqual(st, 200, b)
+        sec = re.search(br'<h1 id="cc">.*?<div class="agr">(.*?)</div>', b, re.S)
+        self.assertTrue(sec, b)
+        for zb in (b'id="af"', b'id="y"', b'id="yg"', b'id="k"', b'<form ', b'id="lo"'):
+            self.assertIn(zb, sec.group(1))
+        self.assertIn(b'id="repl"', b)
 
     def test_recipient_list_without_share_link_passwords(self):
         self.cinit_shr()

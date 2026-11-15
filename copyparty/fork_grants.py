@@ -29,8 +29,9 @@ if True:  # pylint: disable=using-constant-test
         from .authsrv import VFS, AuthSrv
         from .svchub import SvcHub
 
-# the grants page and the grant button; registered here so upstream's list in __init__ stays as it is
-RES.update(("web/grants.html", "web/grants.js", "web/grantbtn.js"))
+# the fork's web files: the grants page, the grant button, and the control panel tidy-up
+# (ctlpanel.js); registered here so upstream's list in __init__ stays as it is
+RES.update(("web/grants.html", "web/grants.js", "web/grantbtn.js", "web/ctlpanel.js"))
 
 GRANTS_DB_VER = 1
 
