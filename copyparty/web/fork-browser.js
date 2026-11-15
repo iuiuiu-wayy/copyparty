@@ -9,6 +9,7 @@
 (function () {
     var SCRIPTS = [
         'grantbtn.js',
+        'rowsel.js',
     ];
 
     var me = document.currentScript;

@@ -18,6 +18,8 @@ from copyparty.httpcli import HttpCli
 from tests import util as tu
 from tests.util import Cfg
 
+WEB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "copyparty", "web")
+
 ACCS = ["alice:alice", "bob:bob", "carol:carol"]
 
 
@@ -1323,6 +1325,40 @@ class TestForkGrants(unittest.TestCase):
         self.assertEqual(st, 200, b)
         zb = br'<script nonce="[^"]+" src="/\.cpr/w/fork-browser\.js\?_=[^"]+">'
         self.assertTrue(re.search(zb, b), b)
+
+    def test_row_checkbox_script_is_served(self):
+        # loaded by fork-browser.js; the row and select-all checkboxes
+        self.cinit(harden=True, no_html=True)
+        for un in ("alice", "*"):
+            st, b = self.get(".cpr/w/rowsel.js", un)
+            self.assertEqual(st, 200, un)
+            self.assertIn(b"after(msel, 'selui')", b, un)
+        st, b = self.get(".cpr/w/fork-browser.js", "alice")
+        self.assertIn(b"'rowsel.js'", b)
+
+    def test_browser_names_the_row_checkboxes_rely_on(self):
+        # rowsel.js wraps and calls msel and filecols.set_style by name, puts
+        # the select-all box in th[name=lead], skips search header rows, and
+        # appends (not prepends) to the lead cell because the right-click menu
+        # reads its first node; an upstream rename there leaves the boxes
+        # missing or out of step
+        with open(os.path.join(WEB, "browser.js"), "rb") as f:
+            js = f.read()
+        for zb in (
+            b"r.render = function",
+            b"r.selui = function",
+            b"r.seltgl = function",
+            b"var tr = this.parentNode,",
+            b"r.evsel = function (e, fun)",
+            b"r.getall = function",
+            b"r.getsel = function",
+            b"r.set_style = function",
+            b'<th name="lead">',
+            b'class="srch_hdr"',
+            b'id="unsearch"',
+            b"file.firstChild.firstChild",
+        ):
+            self.assertIn(zb, js)
 
     def test_control_panel_script_is_served(self):
         # loaded with --js-other /.cpr/w/ctlpanel.js on every non-browser page
