@@ -18,6 +18,8 @@ This is the setup that works; each step stops a trap that cost a session time.
 4. **Log in with a multipart POST** from a page on that server, in the browser's JS console:
    `var f = new FormData(); f.append('act','login'); f.append('uname','alice'); f.append('cppwd','<pw>'); await fetch('/?h', {method:'POST', body:f})`
    (`/cpp/?h` behind `rp-loc`). A form-encoded body logs in for that one reply but sets no cookie.
+   The `uname` field is only for a config with `usernames`; without it the server answers 422
+   (`expected field "cppwd"`), so leave that `append` out and send only `act` and `cppwd`.
 5. **One logged-in server per host name at a time.** Cookies ignore the port, and a plain
    server's `cppwd` (`Path=/`) is sent to the `rp-loc` server too and wins over its
    `Path=/cpp` cookie. Log out of the first server (`act=logout`) before logging in to the

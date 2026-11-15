@@ -430,6 +430,28 @@ class TestForkGrants(unittest.TestCase):
             with self.assertRaises(Exception):
                 self.asrv.vfs.get("shared/alice/proj/f.txt", "bob", True, False, **ka)
 
+    def test_move_into_a_read_upload_grant(self):
+        # drag to move, like paste and upload, may put things into a grant;
+        # /shared/ and the owner folders above the grants refuse them
+        v = ["a:home/alice:A,alice", "b:home/bob:A,bob"]
+        self.cinit(v=v)
+        self.assertEqual(self.grant(perms=("read", "write"))[0], 201)
+        for fn in ("in.txt", "top.txt", "own.txt"):
+            with open("b/" + fn, "wb") as f:
+                f.write(b"x")
+        hdr = "Content-Length: 0\r\n"
+        for fn, dst in (("top.txt", "/shared/top.txt"), ("own.txt", "/shared/alice/own.txt")):
+            st, b = self.req("POST", "home/bob/%s?move=%s" % (fn, dst), "bob", hdr)
+            self.assertEqual(st, 403, (dst, b))
+            self.assertTrue(os.path.exists("b/" + fn), dst)
+        self.assertEqual(sorted(os.listdir("a")), ["priv.txt", "proj"])
+
+        url = "home/bob/in.txt?move=/shared/alice/proj/in.txt"
+        self.assertEqual(self.req("POST", url, "bob", hdr)[0], 201)
+        self.assertFalse(os.path.exists("b/in.txt"))
+        with open("a/proj/in.txt", "rb") as f:
+            self.assertEqual(f.read(), b"x")
+
     # refusals at create (ticket 07)
 
     def n_grants(self):
@@ -1490,6 +1512,27 @@ class TestForkGrants(unittest.TestCase):
         self.assertEqual(st, 200)
         for zb in (b"change password:", b"repeat new password", b"new-password", b"chpw"):
             self.assertIn(zb, b)
+
+    def test_password_change_needs_no_old_password(self):
+        # the control panel's form sends what upstream's link sends: a logged-in
+        # session plus the new password (and uname with usernames), no old one
+        for usernames in (False, True):
+            self.cinit(
+                chpw=True, chpw_db="pw.json", chpw_no=set(), chpw_len=8, chpw_v=0, usernames=usernames
+            )
+            self.load_splash("msg")
+            self.conn.hsrv.broker = None  # chpw then reloads by itself, as in a test
+            self.conn.hsrv.gpwc = self.conn.hsrv.g422 = tu.Garda("")
+            old, new = ("alice:alice", "alice:newpass1") if usernames else ("alice", "newpass1")
+            fields = [("act", None, "chpw"), ("uname", None, "alice"), ("pw", None, "newpass1")]
+            if not usernames:
+                fields.pop(1)
+            st, b = self.form("", old, fields)
+            self.assertEqual(st, 200, (usernames, b))
+            self.assertIn(b"new password OK", b, usernames)
+            self.assertEqual(self.get("home/alice/priv.txt", new), (200, b"a/priv.txt"), usernames)
+            self.assertNotEqual(self.get("home/alice/priv.txt", old)[0], 200, usernames)
+            os.unlink("pw.json")
 
     def test_recipient_list_without_share_link_passwords(self):
         self.cinit_shr()
