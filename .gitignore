@@ -52,3 +52,6 @@ result-*
 
 # IDEA config
 .idea/
+
+# fork: local issue tracker
+.scratch/
