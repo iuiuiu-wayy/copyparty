@@ -1360,6 +1360,33 @@ class TestForkGrants(unittest.TestCase):
         ):
             self.assertIn(zb, js)
 
+    def test_account_link_script_is_served(self):
+        # loaded by fork-browser.js; the control panel link next to logout
+        self.cinit(harden=True, no_html=True)
+        for un in ("alice", "*"):
+            st, b = self.get(".cpr/w/acclink.js", un)
+            self.assertEqual(st, 200, un)
+            self.assertIn(b"SR + '/?h'", b, un)
+        st, b = self.get(".cpr/w/fork-browser.js", "alice")
+        self.assertIn(b"'acclink.js'", b)
+
+    def test_browser_names_the_account_link_relies_on(self):
+        # acclink.js wraps the global apply_perms (which rebuilds #acc_info,
+        # with the logout form #flogout), reads acct, SR, L.goh, fullui and
+        # sloc0, and hides itself like upstream hides #goh for ui_nocpla
+        with open(os.path.join(WEB, "browser.js"), "rb") as f:
+            js = f.read()
+        for zb in (
+            b"function apply_perms(res)",
+            b"apply_perms(res);",
+            b"ebi('acc_info').innerHTML",
+            b'<form id="flogout"',
+            b'"goh": "control-panel"',
+            b"fullui = /[?&]fullui\\b/.exec(sloc0)",
+            b"if (window.ui_nocpla || /[?&]nocpla\\b/.exec(sloc0)) x += '#goh,';",
+        ):
+            self.assertIn(zb, js)
+
     def test_control_panel_script_is_served(self):
         # loaded with --js-other /.cpr/w/ctlpanel.js on every non-browser page
         self.cinit(harden=True, no_html=True)
