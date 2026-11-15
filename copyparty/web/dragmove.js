@@ -76,6 +76,16 @@
         return n && n.nodeType != 1 ? n.parentNode : n;
     }
 
+    // the file-list row under node n, or null
+    function row_of(n) {
+        n = elem(n);
+        return (n && n.closest && n.closest('#files tbody tr')) || null;
+    }
+
+    function setptr(e) {
+        ptr = e.pointerType || 'mouse';
+    }
+
     // the drop target under el: { el, dst (encoded url path), dir (decoded), ok }
     function target(el) {
         el = elem(el);
@@ -83,7 +93,7 @@
             return null;
 
         var t = null,
-            tr = el.closest('#files tbody tr'),
+            tr = row_of(el),
             a = el.closest('#treeul li>a+a') || el.closest('#path a[href]');
 
         if (tr) {
@@ -118,9 +128,8 @@
 
     // rows become draggable under a mouse, where a move-drag may start
     document.addEventListener('pointerover', function (e) {
-        ptr = e.pointerType || 'mouse';
-        var tr = elem(e.target);
-        tr = tr && tr.closest && tr.closest('#files tbody tr');
+        setptr(e);
+        var tr = row_of(e.target);
         if (!tr)
             return;
 
@@ -130,14 +139,11 @@
             tr.removeAttribute('draggable');
     }, true);
 
-    document.addEventListener('pointerdown', function (e) {
-        ptr = e.pointerType || 'mouse';
-    }, true);
+    document.addEventListener('pointerdown', setptr, true);
 
     document.addEventListener('dragstart', function (e) {
         drag = null;
-        var el = elem(e.target),
-            tr = el && el.closest && el.closest('#files tbody tr');
+        var tr = row_of(e.target);
 
         if (!tr || !can_start())
             return;
@@ -253,6 +259,14 @@
         drag = null;
     }, true);
 
+    // the server's reason, minus the URL line every error ends with
+    function reason(xhr) {
+        if (!xhr.status)
+            return 'no reply from the server';
+        var txt = (xhr.responseText || '').replace(/\s*URL:[^\n]*\s*$/, '');
+        return unpre(txt) || 'error ' + xhr.status;
+    }
+
     // one item after another, as paste does; a refused item doesn't stop the rest
     function move(items, dst) {
         var src = get_evpath(),
@@ -290,7 +304,7 @@
                 if (this.status == 201)
                     nok++;
                 else
-                    bad.push('<b>' + esc(it.fn) + '</b>: ' + (unpre(this.responseText || '') || 'error ' + this.status));
+                    bad.push('<b>' + esc(it.fn) + '</b>: ' + reason(this));
                 next();
             };
             xhr.send();

@@ -20,7 +20,7 @@
         list = head && head.nextElementSibling;
 
     if (head)
-        chpwForm();
+        chpw_form();
 
     // upstream changes your password through the login box: type the new one into #lp, then
     // click the small #x link; Enter or "login" there logs you out instead. This puts a form
@@ -28,7 +28,7 @@
     // someone is logged in and it's not a share, so its presence is what shows the form.
     // The post is what #x sends (act=chpw, uname with --usernames, pw) to #lf's action;
     // handle_chpw answers with the msg page. It asks for no old password, as upstream.
-    function chpwForm() {
+    function chpw_form() {
         var x = ebi('x'),
             lf = ebi('lf'),
             un = ebi('un'),
@@ -98,7 +98,7 @@
                 bad = pw2;
             }
             else if (nbytes(a) > 64)
-                err = 'too long; at most 64 characters';
+                err = 'too long: at most 64 bytes; letters with accents or symbols count as 2-4';
 
             msg.textContent = err;
             if (!err)
