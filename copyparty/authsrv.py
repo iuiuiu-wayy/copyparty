@@ -3225,6 +3225,8 @@ class AuthSrv(object):
         self.idp_warn = []
         self.idp_err = []
         for idp_vp in self.idp_vols:
+            if idp_vp not in vfs.all_vols:
+                continue  # fork: dropped by nospawn
             idp_vn, _ = vfs.get(idp_vp, "*", False, False)
             idp_vp0 = idp_vn.vpath0
 

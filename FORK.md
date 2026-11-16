@@ -225,6 +225,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [`harden`: dotfiles](#upstream-edit-harden-dotfiles) | `authsrv.py`, `httpcli.py`, `up2k.py`, `__main__.py` |
 | [share link password equal to an account password](#upstream-edit-share-link-password-equal-to-an-account-password) | `authsrv.py` |
 | [text listing of a folder with no path on disk](#upstream-edit-text-listing-of-a-folder-with-no-path-on-disk) | `httpcli.py` |
+| [`nospawn` with per-user volumes](#upstream-edit-nospawn-with-per-user-volumes) | `authsrv.py` |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -493,6 +494,22 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **fork files:** `tests/test_fork_ls_vols.py`
 - **on conflict / if upstream fixes it:** take upstream's version and drop ours; keep the test if
   it still passes
+
+### upstream edit: `nospawn` with per-user volumes
+
+- **what it is:** fixes an upstream bug: `nospawn` (global `--vol-nospawn` or the volflag) on a
+  `${u}`/`${g}` volume whose folders don't exist crashed `AuthSrv._reload` with `KeyError: 'pop
+  from an empty set'`, so the server didn't start (or a reload failed). The nospawn drop removed
+  those volumes from the VFS but left them in `idp_vols`; the IdP exposure-warning loop then
+  resolved them to a parent node with no sigil. Now the dropped volumes are just left out, with
+  upstream's nospawn warning, and the folders are still not created. Ticket upstream-bugs/02
+- **upstream lines touched:** `authsrv.py` `_reload`, the `for idp_vp in self.idp_vols:` loop
+  (builds `idp_warn` / `idp_err`): two lines at its top, `if idp_vp not in vfs.all_vols: continue`
+  (marked `# fork`). `idp_vols` itself is left as is: nothing else reads it, and it is rebuilt on
+  every reload
+- **fork files:** `tests/test_fork_nospawn_idp.py`
+- **on conflict / if upstream fixes it:** **take upstream's version and drop ours**; keep the
+  test if it still passes
 
 
 ## grants: fork-only folder sharing between accounts
