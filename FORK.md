@@ -226,6 +226,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [share link password equal to an account password](#upstream-edit-share-link-password-equal-to-an-account-password) | `authsrv.py` |
 | [text listing of a folder with no path on disk](#upstream-edit-text-listing-of-a-folder-with-no-path-on-disk) | `httpcli.py` |
 | [`nospawn` with per-user volumes](#upstream-edit-nospawn-with-per-user-volumes) | `authsrv.py` |
+| [sidebar tree of a folder with no path on disk](#upstream-edit-sidebar-tree-of-a-folder-with-no-path-on-disk) | `httpcli.py`, `scripts/sfx.ls` |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -515,6 +516,25 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **fork files:** `tests/test_fork_nospawn_idp.py`
 - **on conflict / if upstream fixes it:** **take upstream's version and drop ours**; keep the
   test if it still passes
+
+### upstream edit: sidebar tree of a folder with no path on disk
+
+- **what it is:** a fix for an upstream bug (`.scratch/deploy-pi/issues/01`): `?tree` on a folder
+  that only exists because volumes are mounted below it (`/home/` with only `/home/<user>`) gave
+  403, because `handle_get` refuses every request there without read access except `?ls` and the
+  root. The file browser sends `<folder>/?tree=` on every folder change, so the sidebar tree broke
+  on `/home/`. Now `?tree` gets through when `?ls` (`tx_ls_vols`) would list something there, and
+  `gen_tree`'s existing fallback (direct children of `top` in `self.rvol`) answers it. To show no
+  more than `?ls`, `unlistcr` volumes are dropped from `self.rvol` for that request; anything else
+  on such a folder is still refused. A deeper chain (`/a/b/` with volumes only at `/a/b/c/x`) gets
+  200 with an empty list for `a` and `a/b` (the fallback only finds direct children), not fixed here
+- **upstream lines touched:** `httpcli.py`: one import line, and in `handle_get` two lines right
+  after the `if "ls" in self.uparam: return self.tx_ls_vols()` exception,
+  `if "tree" in self.uparam and self.vpath: return tx_tree_vols(self)` (marked `# fork`);
+  `scripts/sfx.ls`: `copyparty/fork_tree.py`
+- **fork files:** `copyparty/fork_tree.py`, `tests/test_fork_tree_vols.py`
+- **on conflict / if upstream fixes it:** **take upstream's version and drop ours** (and
+  `fork_tree.py` with it); keep the test if it still passes
 
 
 ## grants: fork-only folder sharing between accounts

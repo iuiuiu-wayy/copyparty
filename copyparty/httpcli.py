@@ -37,6 +37,7 @@ from .authsrv import LEELOO_DALLAS, VFS  # typechk
 from .bos import bos
 from .fork_grants import handle_egrant, handle_grant, http_request, tx_grants
 from .fork_harden import refuse_dot_name, refuse_short_key
+from .fork_tree import tx_tree_vols
 from .qrkode import qr2svg, qrgen
 from .star import StreamTar
 from .sutil import StreamArc, gfilter
@@ -1524,6 +1525,9 @@ class HttpCli(object):
 
                 if "ls" in self.uparam:
                     return self.tx_ls_vols()
+
+                if "tree" in self.uparam and self.vpath:  # fork
+                    return tx_tree_vols(self)
 
                 if self.vpath:
                     ptn = self.args.nonsus_urls
