@@ -224,6 +224,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [`--shr-adm` as a real list](#upstream-edit---shr-adm-as-a-real-list) | `svchub.py`, `httpcli.py`, `authsrv.py` |
 | [`harden`: dotfiles](#upstream-edit-harden-dotfiles) | `authsrv.py`, `httpcli.py`, `up2k.py`, `__main__.py` |
 | [share link password equal to an account password](#upstream-edit-share-link-password-equal-to-an-account-password) | `authsrv.py` |
+| [text listing of a folder with no path on disk](#upstream-edit-text-listing-of-a-folder-with-no-path-on-disk) | `httpcli.py` |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -478,6 +479,20 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **fork files:** `tests/test_fork_shr_pw.py`
 - **on conflict:** **take theirs if upstream fixes it**, then drop the `pw2u` line and the extra
   branch; keep the test if it still passes
+
+### upstream edit: text listing of a folder with no path on disk
+
+- **what it is:** a fix for an upstream bug (`.scratch/upstream-bugs/issues/01`): `?ls=v`, `?ls=t`
+  and `?ls=txt` on a folder that only exists because volumes are mounted below it (`/` and
+  `/home/` with only `/home/alice`; with grants also `/shared/` and `/shared/<owner>/`) gave a 500,
+  because `tx_ls_vols` set `dt` and `name` to the int `0` and the text formats in `tx_ls` treat
+  them as strings. JSON `?ls` was fine (it drops both keys)
+- **upstream lines touched:** `httpcli.py` `tx_ls_vols`: the `"dt"` and `"name"` values of each
+  entry, now `"1970-01-01 00:00:00"` and the child name `x` (both marked `# fork`); `tx_ls` is
+  untouched
+- **fork files:** `tests/test_fork_ls_vols.py`
+- **on conflict / if upstream fixes it:** take upstream's version and drop ours; keep the test if
+  it still passes
 
 
 ## grants: fork-only folder sharing between accounts

@@ -6984,8 +6984,8 @@ class HttpCli(object):
                 "sz": 0,
                 "ts": 0,
                 "tags": e_d,
-                "dt": 0,
-                "name": 0,
+                "dt": "1970-01-01 00:00:00",  # fork: str, for ?ls=v/t
+                "name": x,  # fork: str, for ?ls=v/t
                 "perms": vn.get_perms("", self.uname),
             }
             for x, vn in sorted(vols)
