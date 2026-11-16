@@ -528,14 +528,15 @@ every place this fork changes an upstream file, one section each below. On a mer
   (write-only ones don't count; refused requests still log `@user has no access to ...`), and the
   fallback (`fork_tree.tree_virt`) lists the next path segment of every readable volume below it,
   at any depth, at `/` too. It shows no more than `?ls`: `unlistcr` volumes are left out by
-  `fork_tree.listable_vols`, the fork's one copy of `tx_ls_vols`' unlistcr/unlistcw filter (keep the
-  two in step). A segment that only leads to deeper volumes goes into `vfs_ls` as a plain folder,
+  `fork_tree.listable_vols`, the fork's one copy of `tx_ls_vols`' unlistcr filter (keep the two in
+  step; computed once per request and kept on the `HttpCli` as `_fork_tree_vols`). A segment that only leads to deeper volumes goes into `vfs_ls` as a plain folder,
   since the `vfs_virt` check would mark it offline (no read access there). Readable folders with no
   path on disk in `vfs_virt` (the grants folders `/<grants>/<owner>`) are no longer marked offline
   either: the offline check `stat`s only volumes with a path on disk
 - **upstream lines touched:** `httpcli.py`: one import line; in `handle_get` two lines right
   after the `if "ls" in self.uparam: return self.tx_ls_vols()` exception,
-  `if "tree" in self.uparam and self.vpath: return tx_tree_vols(self)` (marked `# fork`); in
+  `if "tree" in self.uparam and self.vpath and tree_ok(self): return self.tx_tree()` (marked
+  `# fork`; a refused `?tree` falls through to upstream's own refusal and log line); in
   `gen_tree`'s `except` fallback, `vfs_ls = []` and the `for v in self.rvol` loop replaced by
   `vfs_ls, zsl = tree_virt(self, top)  # fork` and a loop filling `vfs_virt` from `zsl`; in its
   `vfs_virt` loop, `bos.stat(dvn.canonical(drem, False))` now under `if dvn.realpath:  # fork`;
