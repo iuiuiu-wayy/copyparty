@@ -1320,22 +1320,28 @@ class TestForkGrants(unittest.TestCase):
         self.cinit(grants="/shared/")
         self.assertEqual(self.rcpts("alice")[1]["top"], "shared")
 
-    def test_grant_button_script_is_served(self):
-        # loaded by fork-browser.js (or --js-browser); harden refuses dot
-        # paths and no-html serves html as text, neither may touch it
-        self.cinit(harden=True, no_html=True)
-        for un in ("alice", "*"):
-            st, b = self.get(".cpr/w/grantbtn.js", un)
-            self.assertEqual(st, 200, un)
-            self.assertIn(b"?grants=rcpts", b, un)
+    def test_every_loaded_browser_script_is_registered_and_served(self):
+        # fork-browser.js loads each name in its SCRIPTS list; each must be in
+        # RES (or it 404s) and come back byte for byte, to an account and to a
+        # guest, with harden (refuses dot paths) and no-html (html as text) on
+        from copyparty.__init__ import RES
 
-    def test_browser_script_loader_is_served(self):
-        # loaded with --js-browser /.cpr/w/fork-browser.js; it loads grantbtn.js
+        with open(os.path.join(WEB, "fork-browser.js"), "rb") as f:
+            loader = f.read().decode("utf-8")
+        lst = re.search(r"SCRIPTS = \[(.*?)\]", loader, re.S)
+        self.assertTrue(lst, "no SCRIPTS list in fork-browser.js")
+        names = re.findall(r"'([^']+\.js)'", lst.group(1))
+        self.assertIn("grantbtn.js", names)
+
         self.cinit(harden=True, no_html=True)
-        for un in ("alice", "*"):
-            st, b = self.get(".cpr/w/fork-browser.js", un)
-            self.assertEqual(st, 200, un)
-            self.assertIn(b"'grantbtn.js'", b, un)
+        for name in ["fork-browser.js"] + names:
+            self.assertTrue("web/" + name in RES, "%s is not in RES (fork_grants.py)" % name)
+            with open(os.path.join(WEB, name), "rb") as f:
+                disk = f.read()
+            for un in ("alice", "*"):
+                st, b = self.get(".cpr/w/" + name, un)
+                self.assertEqual(st, 200, "%s as %s" % (name, un))
+                self.assertTrue(b == disk, "%s as %s: served bytes differ from the file" % (name, un))
 
     def test_file_browser_tag_the_loader_relies_on(self):
         # fork-browser.js copies its own nonce and ?_= query onto every
@@ -1347,16 +1353,6 @@ class TestForkGrants(unittest.TestCase):
         self.assertEqual(st, 200, b)
         zb = br'<script nonce="[^"]+" src="/\.cpr/w/fork-browser\.js\?_=[^"]+">'
         self.assertTrue(re.search(zb, b), b)
-
-    def test_row_checkbox_script_is_served(self):
-        # loaded by fork-browser.js; the row and select-all checkboxes
-        self.cinit(harden=True, no_html=True)
-        for un in ("alice", "*"):
-            st, b = self.get(".cpr/w/rowsel.js", un)
-            self.assertEqual(st, 200, un)
-            self.assertIn(b"after(msel, 'selui')", b, un)
-        st, b = self.get(".cpr/w/fork-browser.js", "alice")
-        self.assertIn(b"'rowsel.js'", b)
 
     def test_browser_names_the_row_checkboxes_rely_on(self):
         # rowsel.js wraps and calls msel and filecols.set_style by name, puts
@@ -1380,17 +1376,7 @@ class TestForkGrants(unittest.TestCase):
             b'id="unsearch"',
             b"file.firstChild.firstChild",
         ):
-            self.assertIn(zb, js)
-
-    def test_drag_move_script_is_served(self):
-        # loaded by fork-browser.js; drag rows onto a folder to move them
-        self.cinit(harden=True, no_html=True)
-        for un in ("alice", "*"):
-            st, b = self.get(".cpr/w/dragmove.js", un)
-            self.assertEqual(st, 200, un)
-            self.assertIn(b"'?move='", b, un)
-        st, b = self.get(".cpr/w/fork-browser.js", "alice")
-        self.assertIn(b"'dragmove.js'", b)
+            self.assertTrue(zb in js, zb)
 
     def test_browser_names_drag_move_relies_on(self):
         # dragmove.js reads the selection through msel, sends paste's move
@@ -1421,7 +1407,7 @@ class TestForkGrants(unittest.TestCase):
             b"bcfg_bind(r, 'en', 'griden'",
             b'id="unsearch"',
         ):
-            self.assertIn(zb, js)
+            self.assertTrue(zb in js, zb)
         with open(os.path.join(WEB, "up2k.js"), "rb") as f:
             js = f.read()
         for zb in (
@@ -1431,17 +1417,7 @@ class TestForkGrants(unittest.TestCase):
             b"document.body.ondrop = gotfile;",
             b"return toast.inf(10, L.u_uri) || true;",
         ):
-            self.assertIn(zb, js)
-
-    def test_account_link_script_is_served(self):
-        # loaded by fork-browser.js; the control panel link next to logout
-        self.cinit(harden=True, no_html=True)
-        for un in ("alice", "*"):
-            st, b = self.get(".cpr/w/acclink.js", un)
-            self.assertEqual(st, 200, un)
-            self.assertIn(b"SR + '/?h'", b, un)
-        st, b = self.get(".cpr/w/fork-browser.js", "alice")
-        self.assertIn(b"'acclink.js'", b)
+            self.assertTrue(zb in js, zb)
 
     def test_browser_names_the_account_link_relies_on(self):
         # acclink.js wraps the global apply_perms (which rebuilds #acc_info,
@@ -1458,7 +1434,7 @@ class TestForkGrants(unittest.TestCase):
             b"fullui = /[?&]fullui\\b/.exec(sloc0)",
             b"if (window.ui_nocpla || /[?&]nocpla\\b/.exec(sloc0)) x += '#goh,';",
         ):
-            self.assertIn(zb, js)
+            self.assertTrue(zb in js, zb)
 
     def test_control_panel_script_is_served(self):
         # loaded with --js-other /.cpr/w/ctlpanel.js on every non-browser page
@@ -1511,7 +1487,7 @@ class TestForkGrants(unittest.TestCase):
         st, b = self.get(".cpr/w/ctlpanel.js", "alice")
         self.assertEqual(st, 200)
         for zb in (b"change password:", b"repeat new password", b"new-password", b"chpw"):
-            self.assertIn(zb, b)
+            self.assertTrue(zb in b, zb)
 
     def test_password_change_needs_no_old_password(self):
         # the control panel's form sends what upstream's link sends: a logged-in
