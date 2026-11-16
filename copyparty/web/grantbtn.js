@@ -124,7 +124,7 @@
 
         shui.innerHTML = [
             '<div>',
-            '<p class="fork_who">Gives an account or group on this server access to this folder. ' +
+            '<p>Gives an account or group on this server access to this folder. ' +
             'They find it in their own file tree, no link needed.</p>',
             '<table>',
             '<tr><td colspan="2">',

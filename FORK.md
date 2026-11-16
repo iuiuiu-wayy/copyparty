@@ -294,7 +294,8 @@ every place this fork changes an upstream file, one section each below. On a mer
   heading) followed by `div.agr`, whose entries `#y`, `#yg`, `#af`, `#k`, `#wb`, `#ag` and the
   `<form>` holding `#lo` it reorders, rebuilding the `<br />` between them (`#y` and `#yg` it
   relabels "your share links" / "your grants"); on the share links page (`shares.html`,
-  `<html id="ht_shr">`) it puts its intro `<span>` before the first `<span>` in `#wrap`; `#repl` (the `π` link)
+  `<html id="ht_shr">`) it puts its intro `<p id="fork_shrintro">` before the first `<span>` in
+  `#wrap` (upstream's "axs = perms" note); `#repl` (the `π` link)
   on every page with `{{ js }}`. The change-password form leans on `#x` (upstream's "change
   password" link: its presence means chpw is on, someone is logged in and it's not a share; the
   script hides it), `#lf` (its `action` is where the form posts), `#lu` (present means
@@ -336,8 +337,8 @@ every place this fork changes an upstream file, one section each below. On a mer
   `fork-browser.js`): the share button reads "🔗 link", its two tooltips say anyone with the link
   can open it, and the share-link dialog starts with "Anyone with this link can open it, no
   account needed." Ticket grants/16; the grant button's matching words are in `grantbtn.js`
-- **upstream lines touched:** none: `browser.js` and `tl/` are untouched. `scripts/sfx.ls`:
-  `web/linkbtn.js`; `fork_grants.py` adds it to upstream's `RES` next to `grantbtn.js`; one line
+- **upstream lines touched:** only `scripts/sfx.ls` (`web/linkbtn.js`); `browser.js` and `tl/`
+  are untouched. `fork_grants.py` adds it to upstream's `RES` next to `grantbtn.js`; one line
   in `fork-browser.js`'s `SCRIPTS`
 - **fork files:** `copyparty/web/linkbtn.js`, `tests/test_fork_grants.py`
   (`test_every_loaded_browser_script_is_registered_and_served`, `test_browser_names_the_link_button_relies_on`)
@@ -346,7 +347,8 @@ every place this fork changes an upstream file, one section each below. On a mer
   `L.fs_ss` (which `fileman.render` puts in `#fshr`'s `tt` on every selection change), and wraps
   `fileman.share` to prepend its line to `#shui`'s first `<div>`, which `share` rebuilds on every
   open; since upstream bound `bshr.onclick = r.share` before the wrap, it rebinds `#fshr`'s
-  `onclick` to the wrapper. `test_browser_names_the_link_button_relies_on` reads `browser.js` and
+  `onclick` to the wrapper. It also reads `msel.getsel` and `acct` (from `CGV`; it does nothing
+  for guests). `test_browser_names_the_link_button_relies_on` reads `browser.js` and
   fails if one of those names goes. Behaviour has no automated check; after an upstream merge,
   check the button's label and tooltip with and without a selection, and open the share-link
   dialog twice

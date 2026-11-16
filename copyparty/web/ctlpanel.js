@@ -116,10 +116,16 @@
         hi.parentNode.insertBefore(h1, div);
     }
 
-    // the share links page (?shares): say who a share link is for, above upstream's notes
+    // the share links page (?shares): say who a share link is for, on a line of its own
+    // above upstream's notes (the first <span> in #wrap, "axs = perms ..."). A <p>, since
+    // shares.css draws every #wrap>span as an inline underlined note
     var wrap = ebi('wrap');
     if (document.documentElement.id == 'ht_shr' && wrap) {
-        var intro = document.createElement('span');
+        var css = document.createElement('style');
+        css.textContent = '#fork_shrintro{margin:.5em 0 0 0;line-height:1.5em}';
+        document.head.appendChild(css);
+
+        var intro = document.createElement('p');
         intro.id = 'fork_shrintro';
         intro.textContent = 'Links anyone can open without an account. Revoke one to stop it working.';
         wrap.insertBefore(intro, wrap.querySelector('#wrap>span') || ebi('tab'));

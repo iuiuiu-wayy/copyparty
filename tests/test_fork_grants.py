@@ -1473,23 +1473,42 @@ class TestForkGrants(unittest.TestCase):
             "var shui = ebi('shui');",
             "shui = mknod('div', 'shui');",
             "shui.innerHTML = html.join('\\n');",
+            "var msel = (function",
+            "r.getsel = function",
         ):
             self.assertTrue(zs in js, "browser.js no longer has: " + zs)
+        # acct is a global because util.js copies the page's CGV onto window
+        with open(os.path.join(WEB, "util.js"), "rb") as f:
+            zs = "Object.assign(window, window.CGV);"
+            self.assertTrue(zs in f.read().decode("utf-8"), "util.js no longer has: " + zs)
+        with open(os.path.join(os.path.dirname(WEB), "httpcli.py"), "rb") as f:
+            py = f.read().decode("utf-8")
+        self.assertTrue(
+            re.search(r'cgv = \{[^}]*"acct": self\.uname,', py),
+            'httpcli.py no longer puts "acct" in cgv',
+        )
 
     def test_share_links_page_has_what_the_intro_line_is_put_before(self):
         # ctlpanel.js (--js-other) finds the share links page by the html id
-        # and puts its intro line before the first <span> in #wrap
+        # and puts its intro line before the first <span> in #wrap, meant to
+        # be upstream's "axs = perms" note; a span upstream adds before that
+        # would put the intro in the wrong place
         self.cinit_shr(js_other="/.cpr/w/ctlpanel.js", shr_adm=set())
         self.load_splash("shares")
         st, b = self.get("?shares", "alice")
         self.assertEqual(st, 200, b)
         for zb in (
             b'<html lang="en" id="ht_shr">',
-            b'<div id="wrap" class="terse">',
-            b"<span>axs = perms",
             b'src="/.cpr/w/ctlpanel.js?_=',
         ):
             self.assertTrue(zb in b, "the share links page no longer has: %s" % (zb,))
+        m = re.search(br'<div id="wrap"[^>]*>(.*?)<span>([^<]*)</span>', b, re.S)
+        self.assertTrue(m, "the share links page has no <span> in #wrap")
+        self.assertNotIn(b"<span", m.group(1), "a <span> nested before the first note in #wrap")
+        self.assertTrue(
+            m.group(2).startswith(b"axs = perms"),
+            "the first <span> in #wrap is no longer the axs = perms note: %s" % (m.group(2),),
+        )
 
     def test_control_panel_script_is_served(self):
         # loaded with --js-other /.cpr/w/ctlpanel.js on every non-browser page

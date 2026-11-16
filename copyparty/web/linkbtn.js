@@ -8,10 +8,10 @@
 
 (function () {
     var bshr = ebi('fshr');
-    if (!bshr || !window.fileman || !window.L || acct == '*')
+    if (!bshr || !window.fileman || !window.msel || !window.L || !window.acct || acct == '*')
         return;
 
-    var WHO = 'Anyone with this link can open it, no account needed.';
+    var AUDIENCE_LINE = 'Anyone with this link can open it, no account needed.';
 
     bshr.innerHTML = '🔗<span>link</span>';
 
@@ -22,7 +22,7 @@
 
     // share() rebuilds #shui's whole content on every open, so add the line after each
     // call; it returns early (a toast, no dialog) for a selection it refuses
-    function who() {
+    function addAudienceLine() {
         var shui = ebi('shui'),
             box = shui && shui.firstElementChild;
 
@@ -30,15 +30,14 @@
             return;
 
         var p = mknod('p', 'fork_shwho');
-        p.className = 'fork_who';
-        p.textContent = WHO;
+        p.textContent = AUDIENCE_LINE;
         box.insertBefore(p, box.firstChild);
     }
 
     var share = fileman.share;
     fileman.share = function () {
         var ret = share.apply(this, arguments);
-        who();
+        addAudienceLine();
         return ret;
     };
     // the button's onclick holds upstream's function, not the property; the hotkey
