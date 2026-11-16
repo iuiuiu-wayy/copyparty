@@ -19,7 +19,11 @@
 		<a href="{{ r }}/?grants">refresh</a>
 		<a href="{{ r }}/?h">control-panel</a>
 
-		<span>{{ "every grant on the server (you are a share admin)" if adm else "folders you granted to other accounts" }}</span>
+		{%- if adm %}
+		<span>every grant on the server (you are a share admin)</span>
+		{%- else %}
+		<span>folders you granted to other accounts; they find these in their own file tree, under /{{ top|e }}/{{ this.uname|e }}/</span>
+		{%- endif %}
 
 		<table id="tab"><thead><tr>
 			<th>owner</th>

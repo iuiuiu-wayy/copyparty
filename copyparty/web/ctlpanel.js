@@ -1,7 +1,7 @@
 "use strict";
 
-// fork-only: trims the control panel's "other stuff" section, hides the π link and adds a
-// change-password form; see FORK.md.
+// fork-only: trims the control panel's "other stuff" section, hides the π link, adds a
+// change-password form and an intro line on the share links page; see FORK.md.
 // Loaded with --js-other /.cpr/w/ctlpanel.js, so it runs on every page except the file browser,
 // after the page's own scripts (splash.js has already set the translated labels, so ours stick).
 // The file browser gets --js-other too when --js-browser is empty; there it only hides the π.
@@ -116,6 +116,15 @@
         hi.parentNode.insertBefore(h1, div);
     }
 
+    // the share links page (?shares): say who a share link is for, above upstream's notes
+    var wrap = ebi('wrap');
+    if (document.documentElement.id == 'ht_shr' && wrap) {
+        var intro = document.createElement('span');
+        intro.id = 'fork_shrintro';
+        intro.textContent = 'Links anyone can open without an account. Revoke one to stop it working.';
+        wrap.insertBefore(intro, wrap.querySelector('#wrap>span') || ebi('tab'));
+    }
+
     if (!list || !/\bagr\b/.test(list.className))
         return;
 
@@ -124,6 +133,14 @@
     var recent = ebi('af');
     if (recent)
         recent.textContent = 'recently added files';
+
+    // the same words as the file browser's "link" and "people" buttons (FORK.md)
+    var shares = ebi('y'),
+        grants = ebi('yg');
+    if (shares)
+        shares.textContent = 'your share links';
+    if (grants)
+        grants.textContent = 'your grants';
 
     // where each entry goes; any other entry (#wb, #ag, whatever upstream adds) sits between
     // these and logout, in upstream's order. Reset client settings is dropped; /?reset still works

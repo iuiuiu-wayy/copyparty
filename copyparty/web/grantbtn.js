@@ -1,6 +1,7 @@
 "use strict";
 
-// fork-only: the "grant" button beside "share" in the file browser; see FORK.md.
+// fork-only: the grant button ("people") beside the share link button in the file browser;
+// see FORK.md.
 // Loaded by fork-browser.js (--js-browser /.cpr/w/fork-browser.js), or directly with
 // --js-browser /.cpr/w/grantbtn.js, so upstream's browser.js stays as it is.
 // Shown for the current folder, or for exactly one selected folder, when grants are on.
@@ -14,8 +15,8 @@
         btn = mknod('a', 'fgrant');
 
     btn.href = '#';
-    btn.setAttribute('tt', 'grant this folder to another account; they find it in their own file tree');
-    btn.innerHTML = '🤝<span>grant</span>';
+    btn.setAttribute('tt', 'give an account or group on this server access to this folder');
+    btn.innerHTML = '🤝<span>people</span>';
     btn.className = 'hide';
     bshr.parentNode.insertBefore(btn, bshr.nextSibling);
     btn.onclick = function (e) {
@@ -123,6 +124,8 @@
 
         shui.innerHTML = [
             '<div>',
+            '<p class="fork_who">Gives an account or group on this server access to this folder. ' +
+            'They find it in their own file tree, no link needed.</p>',
             '<table>',
             '<tr><td colspan="2">',
             '<button id="gr_abrt">cancel</button>',

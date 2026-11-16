@@ -9,6 +9,7 @@
 (function () {
     var SCRIPTS = [
         'grantbtn.js',
+        'linkbtn.js',
         'rowsel.js',
         'acclink.js',
         'dragmove.js',

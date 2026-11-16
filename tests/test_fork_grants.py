@@ -1302,6 +1302,22 @@ class TestForkGrants(unittest.TestCase):
         self.assertEqual(list(self.page("bob")), [bobs])
         self.assertEqual(self.page("carol"), {})
 
+    def test_page_intro_says_where_recipients_look(self):
+        # an owner learns where to send a recipient; a share admin keeps the
+        # line saying the list is every grant on the server
+        from copyparty.fork_util import split_names
+
+        self.cinit(shr_adm=split_names("admin"))
+        self.reaccount(*(ACCS + ["admin:admin"]))
+        st, b = self.get("?grants", "alice")
+        self.assertEqual(st, 200, b)
+        self.assertIn(b"folders you granted to other accounts", b)
+        self.assertIn(b"they find these in their own file tree, under /shared/alice/", b)
+        st, b = self.get("?grants", "admin")
+        self.assertEqual(st, 200, b)
+        self.assertIn(b"every grant on the server (you are a share admin)", b)
+        self.assertNotIn(b"they find these", b)
+
     def rcpts(self, uname):
         st, b = self.get("?grants=rcpts", uname)
         return st, (json.loads(b) if st == 200 else b)
@@ -1435,6 +1451,45 @@ class TestForkGrants(unittest.TestCase):
             b"if (window.ui_nocpla || /[?&]nocpla\\b/.exec(sloc0)) x += '#goh,';",
         ):
             self.assertTrue(zb in js, zb)
+
+    def test_browser_names_the_link_button_relies_on(self):
+        # linkbtn.js relabels #fshr's icon and <span>, replaces the two
+        # tooltip strings render() picks between on every selection change,
+        # and wraps fileman.share (rebinding #fshr's onclick, which holds the
+        # unwrapped function) to put a line at the top of #shui, whose content
+        # share() rebuilds on every open; a rename upstream loses the wording
+        with open(os.path.join(WEB, "browser.js"), "rb") as f:
+            js = f.read().decode("utf-8")
+        for zs in (
+            'id="fshr"',
+            "📨<span>share</span>",
+            "var L = Ls[lang] || Ls.eng",
+            '"fs_sc": ',
+            '"fs_ss": ',
+            "bshr.setAttribute('tt', nsel ? L.fs_ss : L.fs_sc);",
+            "var fileman = (function",
+            "r.share = function (e)",
+            "bshr.onclick = r.share;",
+            "var shui = ebi('shui');",
+            "shui = mknod('div', 'shui');",
+            "shui.innerHTML = html.join('\\n');",
+        ):
+            self.assertTrue(zs in js, "browser.js no longer has: " + zs)
+
+    def test_share_links_page_has_what_the_intro_line_is_put_before(self):
+        # ctlpanel.js (--js-other) finds the share links page by the html id
+        # and puts its intro line before the first <span> in #wrap
+        self.cinit_shr(js_other="/.cpr/w/ctlpanel.js", shr_adm=set())
+        self.load_splash("shares")
+        st, b = self.get("?shares", "alice")
+        self.assertEqual(st, 200, b)
+        for zb in (
+            b'<html lang="en" id="ht_shr">',
+            b'<div id="wrap" class="terse">',
+            b"<span>axs = perms",
+            b'src="/.cpr/w/ctlpanel.js?_=',
+        ):
+            self.assertTrue(zb in b, "the share links page no longer has: %s" % (zb,))
 
     def test_control_panel_script_is_served(self):
         # loaded with --js-other /.cpr/w/ctlpanel.js on every non-browser page

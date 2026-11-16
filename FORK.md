@@ -31,7 +31,7 @@ the Nextcloud features we want to keep:
 | manage users | ❌ **config file only** -- edit, then reload (`kill -USR1` / `[reload cfg]` button) |
 | own folder per user | ✅ `[/home/${u}]` volume, one block covers all users |
 | shared folders | ✅ admin-defined volume + `[groups]` |
-| **user shares a folder with another user** | ✅ grants (`grants: /shared` + `js-browser: /.cpr/w/fork-browser.js`), fork-only; a "grant" button beside "share" in the file browser, to an account or a config group, read-only or read + upload, optional expiry; owners revoke and extend them on `?grants`, linked from the control panel |
+| **user shares a folder with another user** | ✅ grants (`grants: /shared` + `js-browser: /.cpr/w/fork-browser.js`), fork-only; a "🤝 people" button (a grant) beside upstream's share button, relabelled "🔗 link", in the file browser, to an account or a config group, read-only or read + upload, optional expiry; owners revoke and extend them on `?grants`, linked from the control panel |
 | share links | ✅ `shr: /share`; password, expiry, optional upload; owner manages them in the control panel |
 | stream video | ✅ served as-is with range requests; no video transcoding (fine for the Pi) |
 | edit text | ✅ text viewer + two markdown editors |
@@ -39,7 +39,7 @@ the Nextcloud features we want to keep:
 | pick several files like Nextcloud | ✅ `web/rowsel.js` through `js-browser: /.cpr/w/fork-browser.js`, fork-only; a checkbox on every row of the list view and a select-all box in the header, mirroring upstream's selection, so cut / copy / paste, zip, dl, share and grant act on what is ticked. Row click, `space`, shift-click and the bottom bar work as upstream; grid view keeps its own multiselect |
 | move files by dragging, like Nextcloud | ✅ `web/dragmove.js` through `js-browser: /.cpr/w/fork-browser.js`, fork-only; drag rows of the list view onto a folder row, a folder in the sidebar tree or a breadcrumb, and they move there with paste's `?move` request. A selected row carries the whole selection, an unselected one only itself. A progress toast with abort, then one toast naming each item the server refused and why (its reason, minus the URL line). A drop moves without asking. Checked by hand in Chrome, no automated check (ticket 02's Comments; [its upstream edit](#upstream-edit-drag-to-move-dragmovejs)): in grid view and search results no move-drag starts; a pointer reported as touch makes rows non-draggable; a file drag (a `File` in the `DataTransfer`) still gets up2k's upload overlay and uploads; a move-drag carries the items' URLs as `text/uri-list` and `text/plain`. Not checked there: a real file from the desktop, devtools touch emulation, and dropping a name into another tab or the address bar. Rows are draggable wherever you may move, so text in a row can't be selected by dragging there |
 | reach the control panel from the file browser | ✅ `web/acclink.js` through `js-browser: /.cpr/w/fork-browser.js`, fork-only; a `control-panel` link (upstream's translated `L.goh`) before the logout button in the account box at the top right, for logged-in users, to `/?h` with the `--rp-loc` prefix. Hidden with `ui_nocpla` / `--ui-nocpla` / `?nocpla` (unless `?fullui`), like upstream's own link under the file list, which stays |
-| a control panel that makes sense to users | ✅ `js-other: /.cpr/w/ctlpanel.js` + `nb`, fork-only; "other stuff:" becomes "more:" with edit shares, edit grants, recently added files, logout everywhere (in that order); "reset client settings", the `π` link and "powered by" are hidden. With `chpw`, a "change password:" form of its own (new password, repeat, button) sits under "welcome back"; upstream's small "change password" link next to the login button is hidden |
+| a control panel that makes sense to users | ✅ `js-other: /.cpr/w/ctlpanel.js` + `nb`, fork-only; "other stuff:" becomes "more:" with "your share links", "your grants", recently added files, logout everywhere (in that order); "reset client settings", the `π` link and "powered by" are hidden; the share links page gets an intro line ("Links anyone can open without an account. Revoke one to stop it working."). With `chpw`, a "change password:" form of its own (new password, repeat, button) sits under "welcome back"; upstream's small "change password" link next to the login button is hidden |
 
 
 ## hardware limits (Pi Zero 2W)
@@ -198,7 +198,7 @@ docker):
   no-html          # uploaded .html/.htm/.xhtml/.svg/.md and the markdown viewer (?v) are served
                    # as text/plain with script-src 'none'; copyparty's own UI keeps working
   grants: /shared  # grants, see below
-  js-browser: /.cpr/w/fork-browser.js  # loads the fork's file-browser scripts (grant button, row checkboxes, control panel link, drag to move)
+  js-browser: /.cpr/w/fork-browser.js  # loads the fork's file-browser scripts (grant and share link buttons, row checkboxes, control panel link, drag to move)
   js-other: /.cpr/w/ctlpanel.js        # tidies the control panel, hides the π link
   nb                                   # hides "powered by copyparty"
 ```
@@ -217,6 +217,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [grants](#upstream-edit-grants) | `authsrv.py`, `httpcli.py`, `svchub.py`, `__main__.py`, `cfg.py`, `web/splash.html`, `scripts/sfx.ls` |
 | [control panel tidy-up (ctlpanel.js)](#upstream-edit-control-panel-tidy-up-ctlpaneljs) | `scripts/sfx.ls` only |
 | [file-browser script loader (fork-browser.js)](#upstream-edit-file-browser-script-loader-fork-browserjs) | `scripts/sfx.ls` only |
+| [share link wording (linkbtn.js)](#upstream-edit-share-link-wording-linkbtnjs) | `scripts/sfx.ls` only |
 | [row checkboxes (rowsel.js)](#upstream-edit-row-checkboxes-rowseljs) | `scripts/sfx.ls` only |
 | [control-panel link (acclink.js)](#upstream-edit-control-panel-link-acclinkjs) | `scripts/sfx.ls` only |
 | [drag to move (dragmove.js)](#upstream-edit-drag-to-move-dragmovejs) | `scripts/sfx.ls` only |
@@ -287,10 +288,13 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **fork files:** `copyparty/web/ctlpanel.js`, `tests/test_fork_grants.py`
   (`test_control_panel_script_is_served`, `test_control_panel_has_the_ids_the_script_moves`,
   `test_control_panel_password_form_is_served`,
-  `test_control_panel_has_the_ids_the_password_form_uses`)
+  `test_control_panel_has_the_ids_the_password_form_uses`,
+  `test_share_links_page_has_what_the_intro_line_is_put_before`)
 - **on conflict:** nothing to merge, but the script leans on upstream ids by name: `#cc` (the
   heading) followed by `div.agr`, whose entries `#y`, `#yg`, `#af`, `#k`, `#wb`, `#ag` and the
-  `<form>` holding `#lo` it reorders, rebuilding the `<br />` between them; `#repl` (the `π` link)
+  `<form>` holding `#lo` it reorders, rebuilding the `<br />` between them (`#y` and `#yg` it
+  relabels "your share links" / "your grants"); on the share links page (`shares.html`,
+  `<html id="ht_shr">`) it puts its intro `<span>` before the first `<span>` in `#wrap`; `#repl` (the `π` link)
   on every page with `{{ js }}`. The change-password form leans on `#x` (upstream's "change
   password" link: its presence means chpw is on, someone is logged in and it's not a share; the
   script hides it), `#lf` (its `action` is where the form posts), `#lu` (present means
@@ -325,6 +329,27 @@ every place this fork changes an upstream file, one section each below. On a mer
   recheck that the grant button still shows. The loading itself has no automated check; after an
   upstream merge, open the file browser and check the grant button, the row checkboxes, the
   control panel link and dragging a file onto a folder
+
+### upstream edit: share link wording (linkbtn.js)
+
+- **what it is:** says who upstream's share link is for (`web/linkbtn.js`, loaded by
+  `fork-browser.js`): the share button reads "🔗 link", its two tooltips say anyone with the link
+  can open it, and the share-link dialog starts with "Anyone with this link can open it, no
+  account needed." Ticket grants/16; the grant button's matching words are in `grantbtn.js`
+- **upstream lines touched:** none: `browser.js` and `tl/` are untouched. `scripts/sfx.ls`:
+  `web/linkbtn.js`; `fork_grants.py` adds it to upstream's `RES` next to `grantbtn.js`; one line
+  in `fork-browser.js`'s `SCRIPTS`
+- **fork files:** `copyparty/web/linkbtn.js`, `tests/test_fork_grants.py`
+  (`test_every_loaded_browser_script_is_registered_and_served`, `test_browser_names_the_link_button_relies_on`)
+- **on conflict:** nothing to merge, but the script leans on upstream's browser.js by name: it
+  sets `#fshr`'s `innerHTML` (upstream's `📨<span>share</span>`), overwrites `L.fs_sc` /
+  `L.fs_ss` (which `fileman.render` puts in `#fshr`'s `tt` on every selection change), and wraps
+  `fileman.share` to prepend its line to `#shui`'s first `<div>`, which `share` rebuilds on every
+  open; since upstream bound `bshr.onclick = r.share` before the wrap, it rebinds `#fshr`'s
+  `onclick` to the wrapper. `test_browser_names_the_link_button_relies_on` reads `browser.js` and
+  fails if one of those names goes. Behaviour has no automated check; after an upstream merge,
+  check the button's label and tooltip with and without a selection, and open the share-link
+  dialog twice
 
 ### upstream edit: row checkboxes (rowsel.js)
 
@@ -457,8 +482,9 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 see `docs/adr/0001` and `.scratch/grants/spec.md`. Work in progress: tickets 06 (the tracer
 bullet), 07 (rights and refusals), 08 (groups), 09 (lifetime across reloads), 10 (the grants
-page), 11 (the button in the file browser), 12 (expiry without a reload), 13 (symlinks) and
-14 (small gaps in the grant rules) and 15 (FTP/SFTP and `grant_who` limits) are done.
+page), 11 (the button in the file browser), 12 (expiry without a reload), 13 (symlinks),
+14 (small gaps in the grant rules), 15 (FTP/SFTP and `grant_who` limits) and 16 (saying who a
+share link and a grant are for) are done.
 
 options (`[global]`):
 
@@ -480,11 +506,14 @@ what works so far:
 
 * the **grant button** (`web/grantbtn.js`), loaded by `web/fork-browser.js` with
   `js-browser: /.cpr/w/fork-browser.js` (`--js-browser`; behind a reverse proxy with `--rp-loc`,
-  prefix that path). It sits beside "share" in the file browser and acts on the current folder,
-  or on the one folder selected; it
+  prefix that path). It reads "🤝 people" (tooltip: "give an account or group on this server
+  access to this folder") and sits beside the share link button ("🔗 link", see
+  [linkbtn.js](#upstream-edit-share-link-wording-linkbtnjs)) in the file browser; it acts on the
+  current folder, or on the one folder selected; it
   hides when a file or several things are selected, for guests, without read access, inside
   `/shared/` and share links, and when grants are off (it asks `?grants=rcpts` once per page load).
-  Its dialog picks the recipient from `?grants=rcpts`, read-only or read + upload, the name
+  Its dialog opens with "Gives an account or group on this server access to this folder. They
+  find it in their own file tree, no link needed.", then picks the recipient from `?grants=rcpts`, read-only or read + upload, the name
   (default: the folder's name) and an optional expiry in hours / days / weeks, then posts
   `?grant` and shows where the recipient finds it, or the server's refusal word for word. It wraps
   upstream's `fileman.render` to update itself and reuses the share dialog's `#shui` box (and its
@@ -576,7 +605,8 @@ what works so far:
 * share links can't be made of a grant, nor of `/shared/` or `/shared/<owner>/` (`shr_who=no` on
   all of them)
 * the grants page, `GET /?grants` (template `web/grants.html` + `web/grants.js`, linked from the
-  control panel as "edit grants" when grants are on), lists the caller's grants: owner,
+  control panel as "your grants" when grants are on), lists the caller's grants, under a line
+  saying recipients find them under `/shared/<owner>/` (share admins: "every grant on the server"): owner,
   recipient, source folder, the name it appears as, rights, expiry and state. Accounts in
   `--shr-adm` see every grant. States are worked out when the page loads, with the same check as
   a reload: `active`, `expired`, `suspended`, `broken`, or `no members` (a group grant whose
