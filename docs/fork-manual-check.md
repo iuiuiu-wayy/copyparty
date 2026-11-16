@@ -7,9 +7,14 @@ This is the setup that works; each step stops a trap that cost a session time.
 
 1. **Config in the scratchpad**, one file per server: `[global]` with the ticket's options
    (`js-browser: /.cpr/w/fork-browser.js`, `js-other: …`, `grants: /shared`, `harden`,
-   `no-html`, `usernames`), `hist`, `grants-db` and `shr-db` pointing into the scratchpad, test
-   accounts in `[accounts]`, volumes on scratch folders. Copy the shape from the `## Comments` of
-   `.scratch/grants/issues/11-*.md` or `.scratch/browser-ux/issues/05-*.md`.
+   `no-html`, `usernames`), test accounts in `[accounts]`, volumes on scratch folders. Copy the
+   shape from the `## Comments` of `.scratch/grants/issues/11-*.md` or
+   `.scratch/browser-ux/issues/05-*.md`. Two lines every config needs:
+   - **every db in the scratchpad**: `hist`, `shr-db`, `grants-db`, `ses-db`, `chpw-db`. The
+     last two default to `~/.config/copyparty/`, the user's own copyparty state.
+   - **`wram`** when the scratchpad is tmpfs (`/tmp` usually is). Without it copyparty drops
+     write and move on every volume, with one `CRIT` line in the log, and upload, cut and drag
+     then fail as "no permission".
 2. **Behind a reverse proxy** is a second server with `rp-loc: /cpp` and every script path
    prefixed (`js-browser: /cpp/.cpr/w/fork-browser.js`). No proxy is needed: copyparty answers
    under `/cpp/` directly.
@@ -23,11 +28,52 @@ This is the setup that works; each step stops a trap that cost a session time.
 5. **One logged-in server per host name at a time.** Cookies ignore the port, and a plain
    server's `cppwd` (`Path=/`) is sent to the `rp-loc` server too and wins over its
    `Path=/cpp` cookie. Log out of the first server (`act=logout`) before logging in to the
-   second, or use `127.0.0.1` for one and `localhost` for the other.
+   second, or bind the two to different loopback addresses (`i: 127.0.0.2`, `i: 127.0.0.3`;
+   Linux answers on all of `127/8`). `localhost` may carry an old `cppwd` cookie from an earlier
+   session and refuse a fresh login; another address is cleaner.
 6. **Check in the page**, not only by eye: `[...document.scripts].map(s => s.src)` shows what
    loaded and with which `?_=`; `ebi('<id>')` shows whether an element the script adds exists.
 7. **Record** what was checked under the ticket's `## Comments`, then stop the servers and close
    the tab.
+
+## Several agents at once
+
+Agents share one Chrome. Give each its own loopback address (`127.0.0.2`, `.3`, `.4`, …) and its
+own ports, so cookies never mix, and have each create its own tab with `tabs_create_mcp` and act
+only in that tab. Each agent stops only its own servers, by its config path.
+
+## What the Chrome extension can't do
+
+Say so in the ticket rather than claim the check; list it for the user's own check.
+
+- **Resize the window**: `resize_window` leaves `innerWidth` unchanged when the window is
+  maximised or shared. For a phone width, load the page in a fixed-width iframe from a page on
+  the same server: `var f = document.createElement('iframe'); f.style.cssText = 'width:390px;height:800px'; f.src = location.href; document.body.prepend(f)`.
+- **Touch input or devtools device emulation**: not available; touch behaviour is for the user.
+- **Drag a real file in from the desktop**, or drop a link into another tab or the address bar.
+- **Drag reliably onto small targets**: `left_click_drag` works between list rows but missed tree
+  entries. Synthetic drag events test the page's handlers instead (it is the handlers being
+  checked, not the mouse):
+
+  ```js
+  window.sim = function (src, tgt, drop) {
+    var dt = new DataTransfer();
+    var s = new DragEvent('dragstart', {bubbles: true, cancelable: true, dataTransfer: dt});
+    src.dispatchEvent(s);
+    var o = new DragEvent('dragover', {bubbles: true, cancelable: true, dataTransfer: dt});
+    tgt.dispatchEvent(o);
+    var res = {types: [...dt.types], accepted: o.defaultPrevented, effect: dt.dropEffect};
+    if (drop) tgt.dispatchEvent(new DragEvent('drop', {bubbles: true, cancelable: true, dataTransfer: dt}));
+    src.dispatchEvent(new DragEvent('dragend', {bubbles: true, dataTransfer: dt}));
+    return res;
+  };
+  window.row = n => [...QSA('#files tbody tr')].find(t => (msel.getall().find(x => x.id == tr2id(t)) || {}).fn == n);
+  window.tree = n => [...QSA('#treeul li>a+a')].filter(a => a.textContent == n).pop();
+  sim(row('file1.bin'), tree('dest'), true)
+  ```
+
+- **Click links that download**: don't; capture what would be sent instead (for zip, override
+  `HTMLFormElement.prototype.submit` to read the form's fields).
 
 A curl request without a browser `User-Agent` gets copyparty's plain-text listing, not the page.
 Use `-A 'Mozilla/5.0'` when checking html with curl.

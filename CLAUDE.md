@@ -24,15 +24,18 @@ python3 -m venv .venv && .venv/bin/pip install jinja2 strip_hints   # .venv is g
 .venv/bin/python -m unittest discover -s tests    # all unit tests (~30 s)
 .venv/bin/python -m unittest tests.test_shr                # one module
 .venv/bin/python -m unittest tests.test_idp.TestVFS.test_1 # one test
-./scripts/run-tests.sh          # what the pre-commit hook runs: copies to ./unt, strips type hints,
-                                # runs unittest on python2+3, plus smoketest and redup
+./scripts/fork-check.sh         # the pre-commit hook: node --check on fork JS + all unit tests (~20 s)
+./scripts/fork-check.sh --install  # (re)install it as .git/hooks/pre-commit, shared by worktrees
+./scripts/run-tests.sh          # upstream's full check (python2+3, smoketest); needs python2
 ./scripts/make-sfx.sh fast      # build the single-file copyparty-sfx.py
 ./scripts/fork-sfx.sh           # same, from a clean temp copy: make-sfx.sh in place stops on
                                 # copyparty/.mypy_cache and missing webdeps
 ```
 
-Manual browser check of a fork script (login, `rp-loc`, cookie traps): read
-[docs/fork-manual-check.md](./docs/fork-manual-check.md) first.
+Writing or changing a fork file-browser script (`copyparty/web/*.js` loaded by `fork-browser.js`):
+read [docs/fork-browser-scripts.md](./docs/fork-browser-scripts.md) first (upstream traps).
+Manual browser check of a fork script (login, `rp-loc`, cookie traps, parallel agents, what the
+Chrome extension can't do): read [docs/fork-manual-check.md](./docs/fork-manual-check.md) first.
 
 `run-tests.sh` exports `PRTY_NO_VIPS=1`; do the same if libvips is installed and tests misbehave.
 Lint config lives in `pyproject.toml` (black 21.12b0, isort, ruff line 120, pylint, strict mypy).
