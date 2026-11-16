@@ -501,12 +501,17 @@ every place this fork changes an upstream file, one section each below. On a mer
   `${u}`/`${g}` volume whose folders don't exist crashed `AuthSrv._reload` with `KeyError: 'pop
   from an empty set'`, so the server didn't start (or a reload failed). The nospawn drop removed
   those volumes from the VFS but left them in `idp_vols`; the IdP exposure-warning loop then
-  resolved them to a parent node with no sigil. Now the dropped volumes are just left out, with
-  upstream's nospawn warning, and the folders are still not created. Ticket upstream-bugs/02
+  resolved them to a parent node with no sigil. The same crash hit a per-user volume nested under
+  a dropped one (`[/home/${u}/pub]` under a dropped `[/home/${u}]`): it stays in `all_vols` but is
+  unlinked from the tree, so the lookup lands on `home`. Now the dropped volumes are just left out,
+  with upstream's nospawn warning, and the folders are still not created; a nested volume is
+  skipped too and is unreachable (every lookup of it is refused). Ticket
+  upstream-bugs/02
 - **upstream lines touched:** `authsrv.py` `_reload`, the `for idp_vp in self.idp_vols:` loop
-  (builds `idp_warn` / `idp_err`): two lines at its top, `if idp_vp not in vfs.all_vols: continue`
-  (marked `# fork`). `idp_vols` itself is left as is: nothing else reads it, and it is rebuilt on
-  every reload
+  (builds `idp_warn` / `idp_err`): two lines right after its `idp_vn, _ = vfs.get(...)`,
+  `if idp_vn.vpath != idp_vp: continue` (marked `# fork`), which skips any IdP vpath the lookup
+  didn't land on: dropped, or nested under a dropped one. `idp_vols` itself is left as is:
+  nothing else reads it, and it is rebuilt on every reload
 - **fork files:** `tests/test_fork_nospawn_idp.py`
 - **on conflict / if upstream fixes it:** **take upstream's version and drop ours**; keep the
   test if it still passes

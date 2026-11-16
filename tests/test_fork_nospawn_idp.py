@@ -10,6 +10,7 @@ import tempfile
 import unittest
 
 from copyparty.authsrv import AuthSrv
+from copyparty.util import Pebkac
 from tests import util as tu
 from tests.util import Cfg
 
@@ -23,6 +24,7 @@ CONF = """
   accs:
     A: ${u}
 %(hflags)s
+%(extra)s
 [/common]
   %(td)s/common
   accs:
@@ -42,11 +44,11 @@ class TestForkNospawnIdp(unittest.TestCase):
         os.chdir(tempfile.gettempdir())
         shutil.rmtree(self.td)
 
-    def build(self, volflag=False, **ka):
+    def build(self, volflag=False, extra="", **ka):
         hflags = "  flags:\n    nospawn\n" if volflag else ""
         fn = os.path.join(self.td, "t.conf")
         with open(fn, "w") as f:
-            f.write(CONF % {"td": self.td, "hflags": hflags})
+            f.write(CONF % {"td": self.td, "hflags": hflags, "extra": extra})
         return AuthSrv(Cfg(c=[fn], usernames=True, **ka), self.log)
 
     def home(self, usr):
@@ -82,6 +84,24 @@ class TestForkNospawnIdp(unittest.TestCase):
         au.reload()
         self.check_dropped(au, ["wayy"])
         self.assertIn("home/admin", au.vfs.all_vols)
+
+    def test_volume_nested_under_dropped_home(self):
+        # [/home/${u}/pub] exists on disk but its parent [/home/${u}] was dropped;
+        # it stays listed in all_vols yet no lookup can reach it
+        sub = "[/home/${u}/pub]\n  %s/pub/${u}\n  accs:\n    r: *\n    A: ${u}\n"
+        sub = sub % (self.td,)
+        for usr in ["admin", "wayy"]:
+            os.makedirs(os.path.join(self.td, "pub", usr))
+        au = self.build(volflag=True, extra=sub)
+        for _ in range(2):
+            self.check_dropped(au, ["admin", "wayy"])
+            self.assertIn("home/wayy/pub", au.vfs.all_vols)
+            for usr in ["wayy", "*"]:
+                with self.assertRaises(Pebkac):
+                    au.vfs.get("home/wayy/pub", usr, True, False)
+            vn, _ = au.vfs.get("common", "wayy", True, False)
+            self.assertEqual(vn.realpath, os.path.join(self.td, "common"))
+            au.reload()
 
     def test_without_nospawn_homes_are_volumes(self):
         au = self.build()
