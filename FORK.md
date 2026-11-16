@@ -519,22 +519,30 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: sidebar tree of a folder with no path on disk
 
-- **what it is:** a fix for an upstream bug (`.scratch/deploy-pi/issues/01`): `?tree` on a folder
-  that only exists because volumes are mounted below it (`/home/` with only `/home/<user>`) gave
-  403, because `handle_get` refuses every request there without read access except `?ls` and the
-  root. The file browser sends `<folder>/?tree=` on every folder change, so the sidebar tree broke
-  on `/home/`. Now `?tree` gets through when `?ls` (`tx_ls_vols`) would list something there, and
-  `gen_tree`'s existing fallback (direct children of `top` in `self.rvol`) answers it. To show no
-  more than `?ls`, `unlistcr` volumes are dropped from `self.rvol` for that request; anything else
-  on such a folder is still refused. A deeper chain (`/a/b/` with volumes only at `/a/b/c/x`) gets
-  200 with an empty list for `a` and `a/b` (the fallback only finds direct children), not fixed here
-- **upstream lines touched:** `httpcli.py`: one import line, and in `handle_get` two lines right
+- **what it is:** fixes for upstream bugs (`.scratch/deploy-pi/issues/01`, `04`): `?tree` on a
+  folder that only exists because volumes are mounted below it (`/home/` with only `/home/<user>`)
+  gave 403, because `handle_get` refuses every request there without read access except `?ls` and
+  the root; and `gen_tree`'s fallback for such a folder listed only volumes mounted directly in it,
+  so `/` lacked `home` (upstream's own root case) and `/a/` showed nothing with a volume only at
+  `/a/b/c/x`. Now `?tree` gets through when the tree would list a readable volume below the folder
+  (write-only ones don't count; refused requests still log `@user has no access to ...`), and the
+  fallback (`fork_tree.tree_virt`) lists the next path segment of every readable volume below it,
+  at any depth, at `/` too. It shows no more than `?ls`: `unlistcr` volumes are left out by
+  `fork_tree.listable_vols`, the fork's one copy of `tx_ls_vols`' unlistcr/unlistcw filter (keep the
+  two in step). A segment that only leads to deeper volumes goes into `vfs_ls` as a plain folder,
+  since the `vfs_virt` check would mark it offline (no read access there). Readable folders with no
+  path on disk in `vfs_virt` (the grants folders `/<grants>/<owner>`) are no longer marked offline
+  either: the offline check `stat`s only volumes with a path on disk
+- **upstream lines touched:** `httpcli.py`: one import line; in `handle_get` two lines right
   after the `if "ls" in self.uparam: return self.tx_ls_vols()` exception,
-  `if "tree" in self.uparam and self.vpath: return tx_tree_vols(self)` (marked `# fork`);
+  `if "tree" in self.uparam and self.vpath: return tx_tree_vols(self)` (marked `# fork`); in
+  `gen_tree`'s `except` fallback, `vfs_ls = []` and the `for v in self.rvol` loop replaced by
+  `vfs_ls, zsl = tree_virt(self, top)  # fork` and a loop filling `vfs_virt` from `zsl`; in its
+  `vfs_virt` loop, `bos.stat(dvn.canonical(drem, False))` now under `if dvn.realpath:  # fork`;
   `scripts/sfx.ls`: `copyparty/fork_tree.py`
 - **fork files:** `copyparty/fork_tree.py`, `tests/test_fork_tree_vols.py`
 - **on conflict / if upstream fixes it:** **take upstream's version and drop ours** (and
-  `fork_tree.py` with it); keep the test if it still passes
+  `fork_tree.py` with it); keep the tests if they still pass
 
 
 ## grants: fork-only folder sharing between accounts

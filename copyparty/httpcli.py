@@ -37,7 +37,7 @@ from .authsrv import LEELOO_DALLAS, VFS  # typechk
 from .bos import bos
 from .fork_grants import handle_egrant, handle_grant, http_request, tx_grants
 from .fork_harden import refuse_dot_name, refuse_short_key
-from .fork_tree import tx_tree_vols
+from .fork_tree import tree_virt, tx_tree_vols
 from .qrkode import qr2svg, qrgen
 from .star import StreamTar
 from .sutil import StreamArc, gfilter
@@ -6190,12 +6190,10 @@ class HttpCli(object):
         except:
             dk_sz = None
             vn = vfs
-            vfs_ls = []
+            vfs_ls, zsl = tree_virt(self, top)  # fork
             vfs_virt = {}
-            for v in self.rvol:
-                d1, d2 = v.rsplit("/", 1) if "/" in v else ["", v]
-                if d1 == top:
-                    vfs_virt[d2] = vfs  # typechk, value never read
+            for d2 in zsl:
+                vfs_virt[d2] = vfs  # typechk, value never read
 
         dirs = [x[0] for x in vfs_ls if stat.S_ISDIR(x[1].st_mode)]
 
@@ -6231,7 +6229,8 @@ class HttpCli(object):
                         and self.uname not in dvn.axs.uhtml
                     ):
                         raise Exception()
-                    bos.stat(dvn.canonical(drem, False))
+                    if dvn.realpath:  # fork: a folder with no path on disk is never offline
+                        bos.stat(dvn.canonical(drem, False))
                 except:
                     x += "\n"
                 dirs.append(quotep(x))
