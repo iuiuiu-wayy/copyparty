@@ -284,11 +284,14 @@
         e.preventDefault();
         e.stopPropagation();
 
-        var tile = window.thegrid && thegrid.en && t.closest && t.closest('#ggrid > a'),
-            ref = tile && ebi(tile.getAttribute('ref')),
+        // a grid tile: upstream's (ref) or a card of forkgrid.js (data-fk-ref); focus goes
+        // back to the card's link, since its row is hidden
+        var tile = window.thegrid && thegrid.en && t.closest && t.closest('#ggrid > a, [data-fk-ref]'),
+            ref = tile && ebi(tile.getAttribute('ref') || tile.getAttribute('data-fk-ref')),
             tr = ref ? rowof(ref) : rowof(t),
             ae = document.activeElement,
-            src = { from: tr || (ae && ae != document.body ? ae : files), x: e.clientX, y: e.clientY };
+            back = tile && (tile.querySelector('.fk-gname') || tile),
+            src = { from: (tr && back) || tr || (ae && ae != document.body ? ae : files), x: e.clientX, y: e.clientY };
 
         // where contextmenu comes on the press (Linux, macOS), the release that follows
         // outside the menu would light-dismiss it at once; open it after the release
