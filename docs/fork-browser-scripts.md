@@ -110,6 +110,26 @@ or they select it. Traps found while building it:
 - **Upstream's `msel.getsel()` duplicates after a sort** is fixed for everyone by
   `forklist.js` (it wraps `msel.load`); counting the `sel` class still works.
 
+## Drive-ux scripts: the row menu
+
+`web/forkrowmenu.js` owns right-click on `#wrap` and the ⋮ on each row; it exposes
+`forkui.rowmenu` (`open(tr, src, fromKeyboard)`, `menu`). What its entries and the selection
+bar do for Share, Move to…, Rename, Details, Download and Delete lives in `forkui.actions`
+(set up by `forklist.js`): to change one, replace it (`forkui.actions.move = function (rows) {
+... }`) rather than adding a button of your own. An action is called with the rows it acts on,
+which are then also exactly the selection; read it right away, since on a touch screen the row
+menu gives the old selection back once it closes. A control of yours inside a row gets class
+`fk-own`, so `forklist.js` doesn't take its clicks as selecting. Traps found while building it:
+
+- **A menu opened by `contextmenu` is light-dismissed by the button's release.** On Linux and
+  macOS `contextmenu` comes on the press, and a `popover="auto"` closes on the pointerup that
+  follows outside it. Open it after that pointerup (`forkrowmenu.js` does).
+- **Firefox gives Shift+right-click to its own menu without a `contextmenu` event**, so a test
+  can't see it there.
+- **Several popover hide/show calls in one task fire one `toggle` event** (old state open, new
+  state open), and a late `toggle` "closed" can arrive after the menu was opened again:
+  `forkui.menu`'s `onclose` checks it is still closed.
+
 ## Drive-ux scripts: uploads (forknew.js)
 
 `forkui.create` (`web/forknew.js`) is how another script offers New folder, File upload,

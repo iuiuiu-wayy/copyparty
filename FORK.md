@@ -232,6 +232,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [drive-ux list and selection bar (forklist.js)](#upstream-edit-drive-ux-list-and-selection-bar-forklistjs) | `scripts/sfx.ls` only |
 | [drive-ux + New and upload card (forknew.js)](#upstream-edit-drive-ux--new-and-upload-card-forknewjs) | `scripts/sfx.ls` only |
 | [account menu (forkacct.js)](#upstream-edit-account-menu-forkacctjs) | `scripts/sfx.ls` only |
+| [row menu (forkrowmenu.js)](#upstream-edit-row-menu-forkrowmenujs) | `scripts/sfx.ls` only |
 | [drive-ux views that aren't folders (forkviews.js)](#upstream-edit-drive-ux-views-that-arent-folders-forkviewsjs) | `scripts/sfx.ls` only |
 | [drive-ux search (forksearch.js)](#upstream-edit-drive-ux-search-forksearchjs) | `scripts/sfx.ls` only |
 
@@ -705,6 +706,41 @@ every place this fork changes an upstream file, one section each below. On a mer
   merge, run `./scripts/fork-e2e.sh specs/account.spec.js`, and once behind `rp-loc` check that
   each entry keeps the prefix (the harness has no `rp-loc` server)
 
+### upstream edit: row menu (forkrowmenu.js)
+
+- **what it is:** the row menu of the Drive-style file browser (drive-ux ticket 06; on the
+  `drive-ux` branch until ticket 17). Every list row gets a ⋮ ("Actions for <name>"; on hover
+  or focus on a desktop, always on a touch screen, 44 px) that opens one shared `forkui.menu`
+  "Actions"; a right-click on a row (or Shift+F10 / the context-menu key on a focused row)
+  opens the same menu at the pointer instead of upstream's `#rcm`. Entries, each shown where
+  upstream's would be: Open, Play, Play as audio, Open as text, Open in markdown viewer, Open
+  in office editor; Download, Download as zip, Share, Share with people, Copy link; Move to…,
+  Rename, Copy, Cut, Paste, Details (once ticket 13 sets it); + New's entries (`forkui.create`, forknew.js; upstream's `#rnfo` / `#rnfi` without it); Select
+  all, Invert selection, Share this folder; Delete. A right-click on the list's empty space
+  gives the folder's entries. On a row in the selection it acts on the whole selection; on
+  another row on that row alone (a desktop keeps that row selected, as Drive does; a touch
+  screen gives the old selection back when the menu closes). Upstream's `rcm_en` (off = the
+  browser's menu), `rcm_db`, Shift+right-click and `?doc=` still hold. On a phone the menu is a
+  bottom sheet with the item's name and a grab handle; it closes by swipe down, tap outside or
+  Esc, focus back on the ⋮. `forkui.menu` got trigger-less (shared) menus opened at an element
+  or a point, script placement for those (a tall menu stays inside the viewport in every
+  browser), swipe-to-close on every sheet, `dense`, `onclose` and a function `title`.
+  `forklist.js` got `forkui.actions` (share, move, rename, details, download, delete: the
+  selection bar and the row menu both call them; later tickets replace one entry), more of
+  `forkui.list` (`only`, `clip`, `paste`, `act`, `insrch`), and leaves clicks on `.fk-own`
+  elements in a row alone
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forkrowmenu.js`; `fork_grants.py`
+  adds it to upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` (after `forklist.js`)
+- **fork files:** `copyparty/web/forkrowmenu.js`, `tests/test_fork_drive_rowmenu.py`,
+  `tests/e2e/specs/rowmenu.spec.js`; harness fixture `swipe`
+- **on conflict:** nothing to merge, but the menu leans on upstream names, each listed in
+  `tests/test_fork_drive_rowmenu.py`: `#rcm`'s entry ids (the test fails when upstream adds
+  one, until the row menu offers it), `rcm`'s `rcm_en` / `rcm_db` settings and its bare
+  `{enabled: false}` on MOBILE, `#wrap.oncontextmenu` (pre-empted by a capture listener), how
+  `show()` types a row from the lead cell's first node, `play`, `thegrid.imshow`,
+  `showfile.show`, `?v`, `?wopi=` / `wopi_set`, `#rnfo` / `#rnfi` (upstream's name box) and
+  `goto('mkdir' / 'new_md')`, fileman's hide rules and `share`, a grid tile's `ref`, `perms`.
+  After an upstream merge, run `./scripts/fork-e2e.sh specs/rowmenu.spec.js`
 
 ### upstream edit: drive-ux views that aren't folders (forkviews.js)
 

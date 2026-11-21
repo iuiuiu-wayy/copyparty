@@ -14,6 +14,13 @@
 //   forkui.list.open(tr)     open a row as a double-click would
 //   forkui.list.rows(sel)    the list's rows (without search's header row); sel: only selected
 //   forkui.list.selbar       the selection bar element (role=toolbar)
+//   forkui.list.only(trs)    select exactly these rows
+//   forkui.list.clip(how)    'cut' / 'cpy' the selection, then clear it
+//   forkui.list.paste()      upstream's paste into this folder
+//   forkui.list.act(name)    run forkui.actions[name] on the selection
+//   forkui.list.insrch()     showing search results
+//   forkui.actions           share, move, rename, details, download, delete: what the
+//                            selection bar and the row menu call; replace one to change both
 
 (function () {
     var ui = window.forkui;
@@ -144,8 +151,9 @@
         if (opening || e.button)
             return;
         var tr = rowof(e.target);
-        // the row's checkbox (rowsel.js) and the parent-folder links of a search hit stay theirs
-        if (!tr || e.target.closest('.rsel'))
+        // the row's checkbox (rowsel.js), other scripts' controls in a row (class fk-own, the
+        // row menu's ⋮) and the parent-folder links of a search hit stay theirs
+        if (!tr || e.target.closest('.rsel,.fk-own'))
             return;
         var a = e.target.closest('a');
         if (a && insrch() && !a.id)
@@ -176,7 +184,7 @@
 
     files.addEventListener('dblclick', function (e) {
         var tr = rowof(e.target);
-        if (!tr || ptype == 'touch' || e.target.closest('.rsel') || e.shiftKey || ctrl(e))
+        if (!tr || ptype == 'touch' || e.target.closest('.rsel,.fk-own') || e.shiftKey || ctrl(e))
             return;
         e.preventDefault();
         e.stopPropagation();
@@ -196,7 +204,7 @@
     files.addEventListener('pointerdown', function (e) {
         unhold();
         var tr = rowof(e.target);
-        if (e.pointerType != 'touch' || !tr || e.target.closest('.rsel'))
+        if (e.pointerType != 'touch' || !tr || e.target.closest('.rsel,.fk-own'))
             return;
         hold = { x: e.clientX, y: e.clientY, tr: tr, done: false, t0: Date.now() };
         hold.t = setTimeout(held, 500);
@@ -236,7 +244,7 @@
 
     files.addEventListener('contextmenu', function (e) {
         var tr = rowof(e.target);
-        if (ptype == 'touch' && tr) {
+        if (ptype == 'touch' && tr && !e.target.closest('.fk-own')) {
             // Android's long-press: it may come before our timer, and cancel the pointer
             if (!hold || hold.tr != tr)
                 hold = { tr: tr, done: false, t0: Date.now() };
@@ -301,6 +309,29 @@
         fileman.render();
     }
 
+    // what the selection bar and the row menu (forkrowmenu.js) do for these, in one place:
+    // a later script replaces an entry (forkui.actions.move = fn) and both pick it up.
+    // Each is called with the rows it acts on, which are then also exactly the selection
+    // (read it right away: the row menu on a phone gives the selection back afterwards).
+    // details is left out until there is a Details panel; while null it isn't offered
+    var A = ui.actions = ui.actions || {};
+
+    function deflt(name, fn) {
+        if (!(name in A))
+            A[name] = fn;
+    }
+    deflt('share', function () { ebi('fshr').click(); });
+    deflt('move', function () { clipit('cut'); });
+    deflt('rename', function () { fileman.rename({}); });
+    deflt('details', null);
+    deflt('download', function () { download(); });
+    deflt('delete', function () { fileman.delete({}); });
+
+    function act(name) {
+        if (A[name])
+            A[name](rows(true));
+    }
+
     var B = {
         clear: btn('Clear selection', 'close', function () {
             if (nsel()) {
@@ -312,10 +343,10 @@
             else
                 dropclip();
         }),
-        share: btn('Share', 'share', function () { ebi('fshr').click(); }),
-        dl: btn('Download', 'download', download),
-        move: btn('Move to…', 'move', function () { clipit('cut'); }),
-        del: btn('Delete', 'delete', function () { fileman.delete({}); }),
+        share: btn('Share', 'share', function () { act('share'); }),
+        dl: btn('Download', 'download', function () { act('download'); }),
+        move: btn('Move to…', 'move', function () { act('move'); }),
+        del: btn('Delete', 'delete', function () { act('delete'); }),
         paste: el('button', {
             type: 'button', class: 'fk-tbtn', on: { click: paste }
         }, [ui.icon('paste'), el('span', { text: 'Paste here' })]),
@@ -349,7 +380,8 @@
                     ret.push({ label: label, select: fn });
             }
             add(n == 1, 'Open', function () { open(rows(true)[0]); });
-            add(n && !hid('fren'), 'Rename', function () { fileman.rename({}); });
+            add(n && !hid('fren'), 'Rename', function () { act('rename'); });
+            add(n && A.details, 'Details', function () { act('details'); });
             add(n, 'Copy', function () { clipit('cpy'); });
             add(n && !hid('fcut'), 'Cut', function () { clipit('cut'); });
             add(clip && !hid('fpst'), 'Paste', paste);
@@ -474,7 +506,7 @@
             hit = true;
         }
         else if ((k == 'Delete' || (k == 'Backspace' && window.MACOS)) && nsel() && !hid('fdel')) {
-            fileman.delete({});
+            act('delete');
             hit = true;
         }
         else if (k == 'Enter' && !ctrl(e) && !e.shiftKey) {
@@ -552,7 +584,9 @@
     ui.style(css());
     sync();
 
-    window.forkui.list = { open: open, rows: rows, selbar: bar };
+    window.forkui.list = {
+        open: open, rows: rows, selbar: bar, only: only, clip: clipit, paste: paste, act: act, insrch: insrch
+    };
 
     function svg(d) {
         return 'url("data:image/svg+xml,' + encodeURIComponent(

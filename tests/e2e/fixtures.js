@@ -93,6 +93,30 @@ const test = base.test.extend({
         });
     },
 
+    // drag a finger down from the middle of it by dy px (Chromium: real touch through the
+    // devtools protocol; elsewhere the pointer events such a swipe makes)
+    swipe: async ({ page, browserName }, use) => {
+        await use(async (loc, dy) => {
+            const b = await loc.boundingBox();
+            const x = b.x + b.width / 2, y = b.y + b.height / 2, steps = 6;
+            if (browserName === 'chromium') {
+                const cdp = await page.context().newCDPSession(page);
+                const pt = (yy) => [{ x, y: yy, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+                await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(y) });
+                for (let i = 1; i <= steps; i++)
+                    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(y + (dy * i) / steps) });
+                await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+                await cdp.detach();
+                return;
+            }
+            const o = (yy) => ({ pointerType: 'touch', isPrimary: true, pointerId: 8, clientX: x, clientY: yy, bubbles: true });
+            await loc.dispatchEvent('pointerdown', o(y));
+            for (let i = 1; i <= steps; i++)
+                await loc.dispatchEvent('pointermove', o(y + (dy * i) / steps));
+            await loc.dispatchEvent('pointerup', o(y + dy));
+        });
+    },
+
     // the bar that replaces the breadcrumb while something is selected
     selbar: async ({ page }, use) => {
         await use(page.getByRole('toolbar', { name: 'Selection' }));

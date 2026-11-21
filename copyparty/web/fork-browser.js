@@ -16,6 +16,7 @@
         'rowsel.js',
         'dragmove.js',
         'forklist.js',
+        'forkrowmenu.js',
         'forknew.js',
         'forkviews.js',
         'forksearch.js',
