@@ -35,6 +35,9 @@ async function inview(page, loc) {
 }
 
 test('give a folder to a person; they open it; take it back', async ({ page, loginAs, put, press, selbar, server, browser }, info) => {
+    // a grant and its revoke each reload the server, and a second browser opens it: past 30 s
+    // under load in Firefox
+    test.slow();
     const dir = await mkdir(put, info, 'ppl', ['a.txt']);
     const name = dir.slice('/home/alice/'.length, -1);
     await loginAs('alice');
@@ -48,35 +51,36 @@ test('give a folder to a person; they open it; take it back', async ({ page, log
     await expect(people(page)).toHaveCount(0);
     await inview(page, dialog(page));
 
-    await who(page).selectOption('carol');
+    await who(page).selectOption('bob');
     await press(dialog(page).getByRole('radio', { name: 'Viewer and uploader' }));
     await dialog(page).getByLabel('Time limit').selectOption({ label: '7 days' });
     const add = dialog(page).getByRole('button', { name: 'Add', exact: true });
     expect((await add.boundingBox()).height).toBeGreaterThanOrEqual(44);
     await press(add);
 
-    await expect(dialog(page).getByRole('status')).toHaveText(/carol can now open it/);
+    await expect(dialog(page).getByRole('status')).toHaveText(/bob can now open it/);
     await expect(people(page)).toHaveCount(1);
-    await expect(people(page).first()).toContainText('carol');
+    await expect(people(page).first()).toContainText('bob');
     await expect(people(page).first()).toContainText('Viewer and uploader · expires in 7 days');
     let rows = await held(server, dir);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ rcpt: 'carol', pr: 'rw', name, state: 'active', at: `/shared/alice/${name}/` });
+    expect(rows[0]).toMatchObject({ rcpt: 'bob', pr: 'rw', name, state: 'active', at: `/shared/alice/${name}/` });
     expect(rows[0].t1 - Date.now() / 1000).toBeGreaterThan(6.9 * 86400);
 
-    // carol finds it under shared, without a link
+    // bob finds it under shared, without a link (bob, not carol: views.spec checks carol
+    // has nothing from people, and the sizes run alongside it)
     const c = await browser.newContext({ baseURL: server.url });
     const cp = await c.newPage();
-    const cs = await session(server.url, 'carol');
+    const cs = await session(server.url, 'bob');
     const r = await cs.get(`/shared/alice/${name}/a.txt`);
     expect(r.status).toBe(200);
-    await cp.request.post(server.url + '/?h', { multipart: { act: 'login', uname: 'carol', cppwd: ACCOUNTS.carol } });
+    await cp.request.post(server.url + '/?h', { multipart: { act: 'login', uname: 'bob', cppwd: ACCOUNTS.bob } });
     await cp.goto(`/shared/alice/${name}/`);
     await expect(row(cp, 'a.txt')).toBeVisible();
     await c.close();
 
-    await press(people(page).first().getByRole('button', { name: 'Remove access for carol' }));
-    await expect(dialog(page).getByRole('status')).toHaveText(/carol can no longer open it/);
+    await press(people(page).first().getByRole('button', { name: 'Remove access for bob' }));
+    await expect(dialog(page).getByRole('status')).toHaveText(/bob can no longer open it/);
     await expect(people(page)).toHaveCount(0);
     expect(await held(server, dir)).toHaveLength(0);
 
