@@ -37,9 +37,21 @@ const SEED = {
     'home/bob/todo.txt': 'fix the bike\n',
     'family/recipes.txt': 'pancakes\n',
     'common/welcome.txt': 'hello everyone\n',
+    // ticket 04: grants to alice (bike active; old broken, kit suspended at setup)
+    'home/bob/bike/chain.txt': 'oil it\n',
+    'home/bob/old/gone.txt': 'soon gone\n',
+    'lab/kit/tool.txt': 'a hammer\n',
 };
 
-function conf(tmp, port) {
+// uploads made at setup (PUT, so ?ru lists them): [account, path, body]
+const UPLOADS = [
+    ['bob', '/family/up/bob-note.txt', 'from bob\n'],
+    ['carol', '/home/carol/up/carol-a.txt', 'carol one\n'],
+    ['carol', '/home/carol/carol-b.txt', 'carol two, longer\n'],
+];
+
+// lab: 'r: dave' at first; 'A: admin' alone after dave granted from it, which suspends that grant
+function conf(tmp, port, lab) {
     const d = (p) => path.join(tmp, p);
     return `[global]
   i: 127.0.0.1
@@ -82,6 +94,12 @@ ${Object.entries(ACCOUNTS).map(([u, p]) => `  ${u}: ${p}`).join('\n')}
   ${d('srv/common')}
   accs:
     r: @acct
+    A: admin
+
+[/lab]
+  ${d('srv/lab')}
+  accs:
+    ${lab || 'r: dave'}
     A: admin
 `;
 }
@@ -237,6 +255,33 @@ async function start() {
             k: SHARE_KEY, vp: ['/home/alice/trip/'], pw: '', exp: '', perms: ['read', 'get'],
         });
         await expectStatus(r, 201, 'seeding the share link');
+
+        // ticket 04: bob gives alice bike/ (stays active) and old/ (broken below);
+        // dave gives alice the lab's kit/ (suspended below)
+        const bob = await session(base, 'bob');
+        for (const name of ['bike', 'old']) {
+            r = await bob.postJson('/?grant', { vp: `/home/bob/${name}/`, rcpt: 'alice', name, perms: ['read'] });
+            await expectStatus(r, 201, `seeding bob's grant ${name}`);
+        }
+        const dave = await session(base, 'dave');
+        r = await dave.postJson('/?grant', { vp: '/lab/kit/', rcpt: 'alice', name: 'kit', perms: ['read'] });
+        await expectStatus(r, 201, "seeding dave's grant");
+        fs.rmSync(path.join(tmp, 'srv', 'home', 'bob', 'old'), { recursive: true });
+        fs.writeFileSync(cfg, conf(tmp, port, 'A: admin'));
+        r = await (await session(base, 'admin')).get('/?reload=cfg');
+        await expectStatus(r, 200, 'reloading the config');
+        for (let i = 0; ; i++) {
+            const t = (await (await bob.get('/?grants')).text()) + (await (await dave.get('/?grants')).text());
+            if (/broken/.test(t) && /suspended/.test(t))
+                break;
+            if (i > 50)
+                throw new Error('the old and kit grants did not become broken and suspended');
+            await sleep(100);
+        }
+        for (const [u, vp, body] of UPLOADS) {
+            r = await (await session(base, u)).put(vp, body);
+            await expectStatus(r, 201, `uploading ${vp} as ${u}`);
+        }
     } catch (e) {
         const out = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').slice(-30).join('\n') : '';
         await stop();
@@ -252,5 +297,6 @@ async function start() {
 module.exports = start;
 module.exports.ACCOUNTS = ACCOUNTS;
 module.exports.SEED = SEED;
+module.exports.UPLOADS = UPLOADS;
 module.exports.LOGOUT_USERS = LOGOUT_USERS;
 module.exports.session = session;
