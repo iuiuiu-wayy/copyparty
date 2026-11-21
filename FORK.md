@@ -231,6 +231,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [drive-ux list and selection bar (forklist.js)](#upstream-edit-drive-ux-list-and-selection-bar-forklistjs) | `scripts/sfx.ls` only |
 | [drive-ux + New and upload card (forknew.js)](#upstream-edit-drive-ux--new-and-upload-card-forknewjs) | `scripts/sfx.ls` only |
 | [account menu (forkacct.js)](#upstream-edit-account-menu-forkacctjs) | `scripts/sfx.ls` only |
+| [drive-ux views that aren't folders (forkviews.js)](#upstream-edit-drive-ux-views-that-arent-folders-forkviewsjs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -567,7 +568,7 @@ every place this fork changes an upstream file, one section each below. On a mer
   gets the top bar without nav or avatar, and the frame makes no request for them (Outside
   passes only share links and `/.cpr/`). Light theme only (a dark theme is switched to upstream's
   "flat light" and the theme picker hidden); the page's meta viewport is set to scale 1 (upstream
-  starts phones at 0.8). Shared with me and Recent uploads are placeholders (tickets 04), + New
+  starts phones at 0.8). Shared with me and Recent uploads are filled by `forkviews.js`, + New
   lists upstream's create tools (ticket 05), the avatar opens the account menu (`forkacct.js`).
   `ctlpanel.js` also sends a bare `/` (the control panel, as `/` is no volume) to
   `/home/<name>/` when the page lists it; `/?h` stays the control panel. `web/forkui.js` is the
@@ -701,6 +702,42 @@ every place this fork changes an upstream file, one section each below. On a mer
   `"chpw"`, `?shares`, `?grants`, and on the splash page `#x`, `#un`, `#cc`. After an upstream
   merge, run `./scripts/fork-e2e.sh specs/account.spec.js`, and once behind `rp-loc` check that
   each entry keeps the prefix (the harness has no `rp-loc` server)
+
+
+### upstream edit: drive-ux views that aren't folders (forkviews.js)
+
+- **what it is:** the nav's *Shared with me* and *Recent uploads* of the Drive-style file browser
+  (drive-ux ticket 04; on the `drive-ux` branch until ticket 17), drawn in the section
+  `forkshell.js` puts in the list's place (`forkui.shell.views`). *Shared with me*: **From
+  people**, one heading per owner with the grants this account receives (`/<top>/?ls` and
+  `/<top>/<owner>/?ls`, `top` from `/?grants=rcpts`; only mounted grants are listed there, so
+  suspended, broken and expired ones never show), and **Server folders**, the root listing
+  (`/?ls`) minus the grants folder and the account's home folder (a root folder holding it,
+  `/home/`, is listed in its place without it); "Nothing is shared with you yet" when both are
+  empty. *Recent uploads*: upstream's `/?ru&j` as a table of Name (the file), Location (its
+  folder, as "My files/..." under the home folder), Uploaded, Size and By; Uploaded and By are
+  blank where the server hides them (`at` 0, `un` `(?)`: others' uploads for a non-admin unless
+  `--ups-when`); on a phone (the section under 600 px, a container query) each row is the name
+  over "by X, when", the folder a 48 px button. Its nav entry is hidden when a small probe
+  (`/?ru&j&filter=^//`, which matches no path) answers other than 200 (`--no-ups-page`, no
+  index). Folder links open in the list (`treectl.goto`), files as links. No request for a guest
+- **not done as the spec words it:** the browser can't tell "`ups_who` shows this account
+  nothing" from "nothing uploaded yet" (no flag in any reply), so both show the empty state; and
+  with the tested config the admin holds only `a` on other home folders, so the server (and so
+  *Shared with me*) lists none of them
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forkviews.js`; `fork_grants.py` adds
+  it to upstream's `RES`
+- **fork files:** `copyparty/web/forkviews.js`, the `forkui.shell` hook in
+  `copyparty/web/forkshell.js` (replacing the placeholders), icons `folder` / `file` in
+  `forkui.js`, `tests/test_fork_drive_views.py`, `tests/e2e/specs/views.spec.js`; the harness got
+  a `/lab` volume (`r: dave`, then `A: admin` alone after a config rewrite and `?reload=cfg`),
+  grants bob to alice `bike` (active) and `old` (folder removed: broken), dave to alice `kit`
+  (suspended), and uploads by bob (`/family/up/`) and carol (her home)
+- **on conflict:** nothing to merge, but the views lean on upstream names, each listed in
+  `tests/test_fork_drive_views.py`: `?ru` / `&j` / `filter` and the reply's `ups` with `vp sz at
+  un`, the `^` prefix filter, the root listing of a server with no volume at `/`
+  (`tx_ls_vols`), and `vsplit`, `uricom_dec`, `humansize`, `unix2ui`, `treectl.goto`. After an
+  upstream merge, run `./scripts/fork-e2e.sh specs/views.spec.js`
 
 ## grants: fork-only folder sharing between accounts
 

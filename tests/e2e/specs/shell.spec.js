@@ -41,7 +41,7 @@ test('My files goes to the home folder, and the tree to a folder', async ({ page
     await expect(row(page, 'budget.xlsx')).toBeVisible();
 });
 
-test('Shared with me and Recent uploads are placeholders for now', async ({ page, loginAs, nav, press }) => {
+test('Shared with me and Recent uploads show in the list\'s place, My files brings it back', async ({ page, loginAs, nav, press }) => {
     await loginAs('alice');
     await page.goto('/home/alice/');
 

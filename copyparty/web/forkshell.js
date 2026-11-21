@@ -21,7 +21,7 @@
             !!(window.have_shr && get_evpath().indexOf(SR + have_shr) === 0),
         home = SR + '/home/' + encodeURIComponent(acct) + '/',
         hasHome = !guest,
-        view = '',      // '' = a folder, or the placeholder shown: 'shared' / 'recent'
+        view = '',      // '' = a folder, or the view shown: 'shared' / 'recent'
         nombar = !fullui && (window.ui_nombar || /[?&]nombar\b/.exec(sloc0));
 
     // light only for now (spec, Look): leave a dark theme for upstream's flat light
@@ -210,8 +210,8 @@
         return el('div', { class: 'fk-entw', role: 'listitem' }, a);
     }
 
-    // until tickets 04 and 05: Shared with me and Recent uploads are placeholders whose links
-    // (without script) go to the control panel's folder list and upstream's recent uploads
+    // Shared with me and Recent uploads are views (forkviews.js); without script their links
+    // go to the control panel's folder list and upstream's recent uploads
     var ents = {
         mine: entry('mine', 'My files', 'home', home),
         shared: entry('shared', 'Shared with me', 'people', SR + '/?h'),
@@ -254,16 +254,26 @@
     if (ui.narrow.addEventListener)
         ui.narrow.addEventListener('change', placenav);
 
-    // ---- placeholders for the views that aren't folders (ticket 04 fills them)
+    // ---- the views that aren't folders: a section in the list's place, its h2 the view's
+    // name; forkviews.js fills them through forkui.shell.views[id](section). Without it a
+    // view keeps the plain link to upstream's page
 
-    var PH = {
-        shared: ['Shared with me', 'Folders other people gave you, and the server folders you can open, will be listed here.',
-            'For now, the control panel lists every folder you can open.', SR + '/?h'],
-        recent: ['Recent uploads', 'The newest uploads in every folder you can open will be listed here.',
-            'For now, see the recent uploads page.', SR + '/?ru']
+    var VIEWS = {
+        shared: ['Shared with me', 'The control panel lists every folder you can open.', SR + '/?h'],
+        recent: ['Recent uploads', 'See the recent uploads page.', SR + '/?ru']
     };
     var phel = el('section', { class: 'fk-ph', 'aria-labelledby': 'fk-ph-h' });
     ebi('path').parentNode.insertBefore(phel, ebi('path'));
+
+    ui.shell = {
+        views: {},
+        // the nav entry of a view ('mine', 'shared', 'recent'), to hide or show it
+        entry: function (id) { return ents[id] && ents[id].firstChild; },
+        // the view showing ('' = a folder)
+        view: function () { return view; },
+        // the account's home folder (My files), SR-prefixed, URL-quoted
+        home: home
+    };
 
     function showview(v) {
         if (guest)
@@ -271,11 +281,14 @@
         view = v;
         de.classList.toggle('fk-inph', !!v);
         phel.textContent = '';
+        phel.removeAttribute('aria-busy');
         if (v) {
-            var p = PH[v];
+            var p = VIEWS[v];
             phel.appendChild(el('h2', { id: 'fk-ph-h', text: p[0], tabindex: '-1' }));
-            phel.appendChild(el('p', { text: p[1] }));
-            phel.appendChild(el('p', {}, el('a', { href: p[3], text: p[2] })));
+            if (ui.shell.views[v])
+                ui.shell.views[v](phel);
+            else
+                phel.appendChild(el('p', {}, el('a', { href: p[2], text: p[1] })));
         }
         syncnav();
     }
@@ -382,7 +395,7 @@
         };
     }
 
-    // a folder listing ends the placeholder view; every listing and tree update re-syncs
+    // a folder listing ends the view; every listing and tree update re-syncs
     after(treectl, 'gentab', function () {
         if (view)
             showview('');
@@ -495,7 +508,7 @@
             'font:500 14px var(--fk-font);cursor:pointer}',
             'html.fk .opview{scroll-margin-top:var(--fk-top)}',
 
-            // the placeholder views
+            // the views that aren't folders
             '.fk-ph{display:none;margin:24px 1.5em;max-width:40em;color:var(--fk-text);font:16px/1.5 var(--fk-font)}',
             'html.fk-inph .fk-ph{display:block}',
             'html.fk-inph #path,html.fk-inph #wrap,html.fk-inph .opview,html.fk-inph .fk-opbar{display:none!important}',
