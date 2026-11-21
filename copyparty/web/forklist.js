@@ -150,6 +150,16 @@
         ptype = e.pointerType || 'mouse';
     }, true);
 
+    // the click that ends a long-press, also when the rows moved away from under the finger
+    // (the selection bar replacing the breadcrumb) and it lands outside the list
+    document.addEventListener('click', function (e) {
+        if (Date.now() < eatUntil && !rowof(e.target)) {
+            eatUntil = 0;
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }, true);
+
     // the list's rows, and the grid's cards (forkgrid.js, inside upstream's #gfiles)
     function on(type, fn) {
         files.addEventListener(type, fn, true);
