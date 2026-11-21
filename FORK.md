@@ -38,7 +38,7 @@ the Nextcloud features we want to keep:
 | edit docs | ⚠️ `--wopi` can hand off to a Collabora server running elsewhere; untested |
 | pick several files like Nextcloud | ✅ `web/rowsel.js` through `js-browser: /.cpr/w/fork-browser.js`, fork-only; a checkbox on every row of the list view and a select-all box in the header, mirroring upstream's selection, so cut / copy / paste, zip, dl, share and grant act on what is ticked. Row click, `space`, shift-click and the bottom bar work as upstream; grid view keeps its own multiselect |
 | move files by dragging, like Nextcloud | ✅ `web/dragmove.js` through `js-browser: /.cpr/w/fork-browser.js`, fork-only; drag rows of the list view onto a folder row, a folder in the sidebar tree or a breadcrumb, and they move there with paste's `?move` request. A selected row carries the whole selection, an unselected one only itself. A progress toast with abort, then one toast naming each item the server refused and why (its reason, minus the URL line). A drop moves without asking. Checked by hand in Chrome, no automated check (ticket 02's Comments; [its upstream edit](#upstream-edit-drag-to-move-dragmovejs)): in grid view and search results no move-drag starts; a pointer reported as touch makes rows non-draggable; a file drag (a `File` in the `DataTransfer`) still gets up2k's upload overlay and uploads; a move-drag carries the items' URLs as `text/uri-list` and `text/plain`. Not checked there: a real file from the desktop, devtools touch emulation, and dropping a name into another tab or the address bar. Rows are draggable wherever you may move, so text in a row can't be selected by dragging there |
-| reach the control panel from the file browser | ✅ `web/acclink.js` through `js-browser: /.cpr/w/fork-browser.js`, fork-only; a `control-panel` link (upstream's translated `L.goh`) before the logout button in the account box at the top right, for logged-in users, to `/?h` with the `--rp-loc` prefix. Hidden with `ui_nocpla` / `--ui-nocpla` / `?nocpla` (unless `?fullui`), like upstream's own link under the file list, which stays |
+| reach the control panel from the file browser | ✅ on the `drive-ux` branch: `web/forkacct.js`, fork-only; the account menu on the top bar's avatar (the account's initial): Change password (the control panel's form, focused), My share links, My grants, Control panel, Log out, at the `--rp-loc` prefix. Hidden for guests and with `ui_noacci`; Control panel left out with `ui_nocpla` (both unless `?fullui`), as upstream hides its own account box and link. [Its upstream edit](#upstream-edit-account-menu-forkacctjs) |
 | a control panel that makes sense to users | ✅ `js-other: /.cpr/w/ctlpanel.js` + `nb`, fork-only; "other stuff:" becomes "more:" with "your share links", "your grants", recently added files, logout everywhere (in that order); "reset client settings", the `π` link and "powered by" are hidden; the share links page gets an intro line ("Links anyone can open without an account. Revoke one to stop it working."). With `chpw`, a "change password:" form of its own (new password, repeat, button) sits under "welcome back"; upstream's small "change password" link next to the login button is hidden |
 
 
@@ -219,7 +219,6 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [file-browser script loader (fork-browser.js)](#upstream-edit-file-browser-script-loader-fork-browserjs) | `scripts/sfx.ls` only |
 | [share link wording (linkbtn.js)](#upstream-edit-share-link-wording-linkbtnjs) | `scripts/sfx.ls` only |
 | [row checkboxes (rowsel.js)](#upstream-edit-row-checkboxes-rowseljs) | `scripts/sfx.ls` only |
-| [control-panel link (acclink.js)](#upstream-edit-control-panel-link-acclinkjs) | `scripts/sfx.ls` only |
 | [drag to move (dragmove.js)](#upstream-edit-drag-to-move-dragmovejs) | `scripts/sfx.ls` only |
 | [`--shr-adm` as a real list](#upstream-edit---shr-adm-as-a-real-list) | `svchub.py`, `httpcli.py`, `authsrv.py` |
 | [`harden`: dotfiles](#upstream-edit-harden-dotfiles) | `authsrv.py`, `httpcli.py`, `up2k.py`, `__main__.py` |
@@ -230,6 +229,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [end-to-end harness (tests/e2e)](#upstream-edit-end-to-end-harness-testse2e) | none |
 | [drive-ux frame (forkui.js, forkshell.js)](#upstream-edit-drive-ux-frame-forkuijs-forkshelljs) | `scripts/sfx.ls` only |
 | [drive-ux + New and upload card (forknew.js)](#upstream-edit-drive-ux--new-and-upload-card-forknewjs) | `scripts/sfx.ls` only |
+| [account menu (forkacct.js)](#upstream-edit-account-menu-forkacctjs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -379,25 +379,6 @@ every place this fork changes an upstream file, one section each below. On a mer
   then undoes the box's tick. `test_browser_names_the_row_checkboxes_rely_on` reads `browser.js`
   and fails if one of those names goes. Behaviour has no automated check; after an upstream merge,
   tick two rows, check the bottom bar, the select-all box and a search
-
-### upstream edit: control-panel link (acclink.js)
-
-- **what it is:** control panel link in the account box (`web/acclink.js`, loaded by
-  `fork-browser.js`)
-- **upstream lines touched:** none: `browser.js`, `browser.css` and `browser.html` are untouched;
-  the script injects its own `<style>`. `scripts/sfx.ls`: `web/acclink.js`; `fork_grants.py` adds
-  it to upstream's `RES` next to `grantbtn.js`; one line in `fork-browser.js`'s `SCRIPTS`
-- **fork files:** `copyparty/web/acclink.js`, `tests/test_fork_grants.py`
-  (`test_every_loaded_browser_script_is_registered_and_served`, `test_browser_names_the_account_link_relies_on`)
-- **on conflict:** nothing to merge, but the script leans on upstream's browser.js by name: it
-  replaces the global `apply_perms` with a wrapper (upstream calls it by bare name, so the wrapper
-  runs; it rebuilds `#acc_info`'s `innerHTML` on every folder load) and inserts `<a id="facp">`
-  before `#flogout`; it reads `acct`, `SR`, `L.goh`, `fullui`, `sloc0` and `window.ui_nocpla`,
-  copying upstream's `#goh` hide test. Its style sets `#acc_info{z-index:1}` because at phone
-  width upstream's `#srv_info` is drawn over the left of the account box.
-  `test_browser_names_the_account_link_relies_on` reads `browser.js` and fails if one of those
-  names goes. Behaviour has no automated check; after an upstream merge, log in, check the link
-  next to logout, move to another folder, and check it is gone with `?nocpla`
 
 ### upstream edit: drag to move (dragmove.js)
 
@@ -586,7 +567,7 @@ every place this fork changes an upstream file, one section each below. On a mer
   passes only share links and `/.cpr/`). Light theme only (a dark theme is switched to upstream's
   "flat light" and the theme picker hidden); the page's meta viewport is set to scale 1 (upstream
   starts phones at 0.8). Shared with me and Recent uploads are placeholders (tickets 04), + New
-  lists upstream's create tools (ticket 05), the avatar links to the control panel (ticket 10).
+  lists upstream's create tools (ticket 05), the avatar opens the account menu (`forkacct.js`).
   `ctlpanel.js` also sends a bare `/` (the control panel, as `/` is no volume) to
   `/home/<name>/` when the page lists it; `/?h` stays the control panel. `web/forkui.js` is the
   helper every drive-ux script builds on (see the API comment at its top: element builder,
@@ -651,6 +632,33 @@ every place this fork changes an upstream file, one section each below. On a mer
   inputs (`file{0}` / `dir{0}[webkitdirectory]`), `MOBILE`, `html.write`, `perms`, `rw_edit` /
   `re_rw_edit`, `#widget.open`, `#toast`, and the server's mkdir 405 / new_md 500 answers. After an
   upstream merge, run `./scripts/fork-e2e.sh specs/upload.spec.js`
+
+### upstream edit: account menu (forkacct.js)
+
+- **what it is:** the account menu of the Drive-style file browser (drive-ux ticket 10; on the
+  `drive-ux` branch until ticket 17). The top bar's avatar (a button with the account's initial,
+  put there by `forkshell.js`) opens a `forkui.menu` (a bottom sheet with the account name below
+  800 px): Change password (`/?h#chpw`; `ctlpanel.js` focuses its change-password form there, or
+  says chpw is off), My share links (`/?shares`, only with `shr`), My grants (`/?grants`, left
+  out once `/?grants=rcpts` answers other than 200), Control panel (`/?h`), Log out (posts
+  `act=logout` to the page, as upstream's `#flogout` does). Links carry the `--rp-loc` prefix
+  (`SR`). No avatar for a guest or with `ui_noacci` / `?noacci`; Control panel left out with
+  `ui_nocpla` / `?nocpla`; `?fullui` overrides both, copying upstream's hide tests. The avatar is
+  outside `#acc_info`, which `apply_perms` rebuilds on every folder load, so nothing is re-added.
+  `forkui.menu` items may now be links (`href`) and separators (`sep`). Retires the fork's old
+  control-panel link (`acclink.js`, its registration and its names test)
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forkacct.js` (and `web/acclink.js`
+  removed); `fork_grants.py` adds it to upstream's `RES`
+- **fork files:** `copyparty/web/forkacct.js`, the `#chpw` focus in `copyparty/web/ctlpanel.js`,
+  `tests/test_fork_drive_account.py`, `tests/e2e/specs/account.spec.js`; the harness got
+  accounts `out0` to `out15`, one per worker for the scenario that logs out (a logout ends every
+  session of the account: `forget_session`), fixture `logoutUser`
+- **on conflict:** nothing to merge, but the menu leans on upstream names, each listed in
+  `tests/test_fork_drive_account.py`: the `ui_noacci` / `ui_nocpla` / `fullui` tests, the
+  `#flogout` form's `act=logout`, `acct` / `have_shr` / `SR` as globals, `act == "logout"` /
+  `"chpw"`, `?shares`, `?grants`, and on the splash page `#x`, `#un`, `#cc`. After an upstream
+  merge, run `./scripts/fork-e2e.sh specs/account.spec.js`, and once behind `rp-loc` check that
+  each entry keeps the prefix (the harness has no `rp-loc` server)
 
 ## grants: fork-only folder sharing between accounts
 

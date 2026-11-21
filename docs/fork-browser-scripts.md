@@ -2,8 +2,8 @@
 
 Fork scripts change upstream's file browser without editing `browser.js`, `browser.css`,
 `browser.html` or `up2k.js`. Each one is a file in `copyparty/web/`, loaded by `fork-browser.js`.
-Examples: `rowsel.js` (row checkboxes), `dragmove.js` (drag to move), `acclink.js` (control-panel
-link), `grantbtn.js` (grant button).
+Examples: `rowsel.js` (row checkboxes), `dragmove.js` (drag to move), `forkacct.js` (account
+menu), `grantbtn.js` (grant button).
 
 ## Checklist for a new script
 

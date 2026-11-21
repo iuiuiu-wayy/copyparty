@@ -54,6 +54,22 @@
     if (head)
         chpw_form();
 
+    // the file browser's account menu opens Change password as /?h#chpw: focus the form's
+    // first box, or say why there is none (chpw is off in the server config)
+    if (head && location.hash == '#chpw') {
+        var pw = document.querySelector('#fork_cpf input[name=pw]');
+        if (pw) {
+            ebi('fork_cph').scrollIntoView();
+            pw.focus();
+        }
+        else if (ebi('un') && ebi('un').parentNode) {
+            var off = document.createElement('p');
+            off.id = 'fork_cpoff';
+            off.textContent = 'Changing your password is turned off on this server; ask its admin.';
+            ebi('un').parentNode.parentNode.insertBefore(off, ebi('un').parentNode.nextSibling);
+        }
+    }
+
     // upstream changes your password through the login box: type the new one into #lp, then
     // click the small #x link; Enter or "login" there logs you out instead. This puts a form
     // of its own under "welcome back" and hides #x. #x is only on the page when chpw is on,

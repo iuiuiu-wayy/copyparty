@@ -1435,23 +1435,6 @@ class TestForkGrants(unittest.TestCase):
         ):
             self.assertTrue(zb in js, zb)
 
-    def test_browser_names_the_account_link_relies_on(self):
-        # acclink.js wraps the global apply_perms (which rebuilds #acc_info,
-        # with the logout form #flogout), reads acct, SR, L.goh, fullui and
-        # sloc0, and hides itself like upstream hides #goh for ui_nocpla
-        with open(os.path.join(WEB, "browser.js"), "rb") as f:
-            js = f.read()
-        for zb in (
-            b"function apply_perms(res)",
-            b"apply_perms(res);",
-            b"ebi('acc_info').innerHTML",
-            b'<form id="flogout"',
-            b'"goh": "control-panel"',
-            b"fullui = /[?&]fullui\\b/.exec(sloc0)",
-            b"if (window.ui_nocpla || /[?&]nocpla\\b/.exec(sloc0)) x += '#goh,';",
-        ):
-            self.assertTrue(zb in js, zb)
-
     def test_browser_names_the_link_button_relies_on(self):
         # linkbtn.js relabels #fshr's icon and <span>, replaces the two
         # tooltip strings render() picks between on every selection change,
