@@ -85,8 +85,9 @@
         return o;
     }
 
-    // upstream's new folder / new file: its name box in the list where its menu has one
-    // (a folder writable when the page loaded, and not a touch device), else its own panel
+    // without forknew.js: upstream's new folder / new file, its name box in the list where its
+    // menu has one (a folder writable when the page loaded, and not a touch device), else its
+    // own panel
     function mknew(dir) {
         var b = ebi(dir ? 'rnfo' : 'rnfi');
         if (b && window.rcm && 'double' in rcm)
@@ -154,8 +155,13 @@
         add(clip && !hid('fpst'), 'Paste', 'paste', function () { LS.paste(); });
         add(n && A.details, 'Details', null, function () { LS.act('details'); });
         group();
-        add(wr && !srch, 'New folder', 'plus', function () { mknew(true); });
-        add(wr && !srch, 'New text file', null, function () { mknew(false); });
+        // + New's entries (forknew.js: New folder, File upload, Folder upload, New text file)
+        if (ui.create && !srch)
+            grp = grp.concat(ui.create.items(M.from()));
+        else {
+            add(wr && !srch, 'New folder', 'plus', function () { mknew(true); });
+            add(wr && !srch, 'New text file', null, function () { mknew(false); });
+        }
         group();
         add(any, 'Select all', null, function () { msel.evsel({}, 'add'); }, true);
         add(any, 'Invert selection', null, function () { msel.evsel({}, 't'); }, true);

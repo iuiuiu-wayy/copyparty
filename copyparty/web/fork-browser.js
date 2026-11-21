@@ -17,6 +17,7 @@
         'dragmove.js',
         'forklist.js',
         'forkrowmenu.js',
+        'forknew.js',
     ];
 
     var me = document.currentScript;

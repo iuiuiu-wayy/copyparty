@@ -129,3 +129,25 @@ menu gives the old selection back once it closes. A control of yours inside a ro
 - **Several popover hide/show calls in one task fire one `toggle` event** (old state open, new
   state open), and a late `toggle` "closed" can arrive after the menu was opened again:
   `forkui.menu`'s `onclose` checks it is still closed.
+
+## Drive-ux scripts: uploads (forknew.js)
+
+`forkui.create` (`web/forknew.js`) is how another script offers New folder, File upload,
+Folder upload and New text file: `items(opener)` is a ready list for `forkui.menu`, empty
+where the folder can't be written to. Traps found while building + New and the upload card:
+
+- **up2k may not exist yet.** `up2k` is `null` until its hasher check settles and `false`
+  when init failed; check `window.up2k`, else push a function onto `up2k_hooks`.
+- **Every pick or drop opens up2k's panel**: `gotfile` calls `goto('up2k')`, by bare name,
+  so wrapping `window.goto` catches it. Keep `up2k.init_deps()` (what `goto_up2k` does), or
+  the hasher never loads.
+- **The card must read `up2k.ui.tab`, not `#u2tab`**: only the active card's rows of
+  upstream's table exist in the DOM. `ui.addfile` runs before `st.files.push`, so read the
+  new file a tick later.
+- **Upstream's toasts come up bottom right**, over anything fixed there (and they catch the
+  clicks); `forknew.js` moves `#toast` up above the card.
+- **The file inputs are `tabindex=-1` and inside the hidden panel**; `.click()` on them still
+  opens the picker, but only inside the user's gesture (call it from the menu pick itself).
+- **In e2e tests, give each upload its own bytes**: the server links a copy it already has
+  instead of receiving the file again (dedup), so parallel projects uploading the same bytes
+  see no chunk requests.

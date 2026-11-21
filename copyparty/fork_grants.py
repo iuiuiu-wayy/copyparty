@@ -46,6 +46,7 @@ RES.update(
         "web/ctlpanel.js",
         "web/forkui.js",
         "web/forkshell.js",
+        "web/forknew.js",
         "web/forkacct.js",
         "web/forklist.js",
         "web/forkrowmenu.js",

@@ -175,14 +175,15 @@ test.describe('on a desktop', () => {
         await page.mouse.click(fb.x + 200, fb.y + fb.height + 20, { button: 'right' });
         await expect(menu(page)).toBeVisible();
         const ls2 = await labels(page);
-        for (const e of ['Paste', 'New folder', 'New text file', 'Select all', 'Share this folder'])
+        for (const e of ['Paste', 'New folder', 'File upload', 'New text file', 'Select all', 'Share this folder'])
             expect(ls2).toContain(e);
         expect(ls2).not.toContain('Open');
 
-        // New folder: upstream's name box in the list
+        // New folder: + New's dialog (forknew.js)
         await item(page, 'New folder').click();
-        await page.locator('#tempname').fill('made');
-        await page.locator('#tempname').press('Enter');
+        const d = page.getByRole('dialog', { name: 'New folder' });
+        await d.getByRole('textbox', { name: 'Folder name' }).fill('made');
+        await d.getByRole('button', { name: 'Create' }).click();
         await expect.poll(async () => (await ls('alice', dir)).dirs).toContain('made');
     });
 
