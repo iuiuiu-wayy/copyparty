@@ -227,6 +227,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [text listing of a folder with no path on disk](#upstream-edit-text-listing-of-a-folder-with-no-path-on-disk) | `httpcli.py` |
 | [`nospawn` with per-user volumes](#upstream-edit-nospawn-with-per-user-volumes) | `authsrv.py` |
 | [sidebar tree of a folder with no path on disk](#upstream-edit-sidebar-tree-of-a-folder-with-no-path-on-disk) | `httpcli.py`, `scripts/sfx.ls` |
+| [end-to-end harness (tests/e2e)](#upstream-edit-end-to-end-harness-testse2e) | none |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -544,6 +545,31 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **fork files:** `copyparty/fork_tree.py`, `tests/test_fork_tree_vols.py`
 - **on conflict / if upstream fixes it:** **take upstream's version and drop ours** (and
   `fork_tree.py` with it); keep the tests if they still pass
+
+### upstream edit: end-to-end harness (tests/e2e)
+
+- **what it is:** a dev-only end-to-end harness: `./scripts/fork-e2e.sh` starts copyparty from
+  source (`tests/e2e/server.js`) on 127.0.0.1 and a free port, with the [tested
+  config](#tested-config-users-groups-home-folders-shares) plus `grants: /shared`,
+  `js-browser: /.cpr/w/fork-browser.js` and `wram`, every folder and db in a temp dir, seeded
+  files, one grant (alice's `proj/` to bob) and one share link (alice's `trip/`), then drives the
+  file browser with Playwright (`tests/e2e/specs/`) at desktop (1440x900), phone (412x915, touch)
+  and small phone (360x800, touch), in Chromium and in Firefox / WebKit when installed. It stops
+  the server and removes the temp dir when the run ends or is cut short (`E2E_KEEP=1` keeps it).
+  Its one dependency is `playwright`, pinned exactly in `tests/e2e/package.json` + lockfile;
+  nothing of it is in the server, `scripts/sfx.ls` or the pre-commit hook
+- **upstream lines touched:** none
+- **fork files:** `scripts/fork-e2e.sh`, `tests/e2e/` (`package.json`, `package-lock.json`,
+  `playwright.config.js`, `server.js`, `fixtures.js`, `specs/*.spec.js`), `tests/test_fork_e2e.py`
+- **on conflict:** nothing to merge, but the harness leans on upstream's HTTP API by name: the
+  login form's multipart `act=login`, `uname`, `cppwd` posted to `/?h` and the `cppwd` cookie;
+  `POST ?share` (JSON `k`, `vp`, `pw`, `exp`, `perms` with `get`; 201); `PUT` uploads (201);
+  `?ls`'s `dirs` / `files` and their `href`. `test_server_names_the_harness_relies_on` reads
+  `httpcli.py` and fails if one of those names goes. The scenarios find rows by role and
+  link text (a folder shows as `name/`), and the share-link one expects a click on a file
+  that isn't media to download it. Upstream's `run-tests.sh` copies `tests/` into `./unt`,
+  `tests/e2e/node_modules` (~18 MB) too, if it is installed; harmless. After an upstream merge,
+  run `./scripts/fork-e2e.sh`
 
 
 ## grants: fork-only folder sharing between accounts

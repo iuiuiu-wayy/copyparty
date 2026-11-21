@@ -30,12 +30,19 @@ python3 -m venv .venv && .venv/bin/pip install jinja2 strip_hints   # .venv is g
 ./scripts/make-sfx.sh fast      # build the single-file copyparty-sfx.py
 ./scripts/fork-sfx.sh           # same, from a clean temp copy: make-sfx.sh in place stops on
                                 # copyparty/.mypy_cache and missing webdeps
+./scripts/fork-e2e.sh --install # once: the end-to-end harness's pinned Playwright + Chromium
+                                # (--install-all adds Firefox and WebKit)
+./scripts/fork-e2e.sh           # end-to-end: the file browser in a real browser, every scenario
+                                # at desktop, phone and small phone; not in the pre-commit hook,
+                                # run it per ticket and after every upstream merge (~10 s)
+./scripts/fork-e2e.sh --project chromium-phone specs/select.spec.js  # one size, one file
 ```
 
 Writing or changing a fork file-browser script (`copyparty/web/*.js` loaded by `fork-browser.js`):
 read [docs/fork-browser-scripts.md](./docs/fork-browser-scripts.md) first (upstream traps).
-Manual browser check of a fork script (login, `rp-loc`, cookie traps, parallel agents, what the
-Chrome extension can't do): read [docs/fork-manual-check.md](./docs/fork-manual-check.md) first.
+Writing an end-to-end scenario (`tests/e2e/specs/`), or a manual browser check of a fork script
+(login, `rp-loc`, cookie traps, parallel agents, what the Chrome extension can't do): read
+[docs/fork-manual-check.md](./docs/fork-manual-check.md) first.
 
 `run-tests.sh` exports `PRTY_NO_VIPS=1`; do the same if libvips is installed and tests misbehave.
 Lint config lives in `pyproject.toml` (black 21.12b0, isort, ruff line 120, pylint, strict mypy).

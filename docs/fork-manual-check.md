@@ -1,9 +1,37 @@
 # Manual browser check of a fork script
 
-Fork scripts in `copyparty/web/` have no JS test harness, so tickets record a check in Chrome.
+Behaviour goes into the end-to-end harness first; this doc is for what it can't judge (how it
+looks, one pass on a real phone) and for debugging by hand.
+
+## The end-to-end harness
+
+```sh
+./scripts/fork-e2e.sh --install      # once: npm ci (Playwright, pinned) + its Chromium
+./scripts/fork-e2e.sh --install-all  # the same, plus Firefox and WebKit
+./scripts/fork-e2e.sh                # all scenarios, all sizes, every installed browser
+./scripts/fork-e2e.sh --project chromium-phone specs/select.spec.js   # one size, one file
+E2E_KEEP=1 ./scripts/fork-e2e.sh     # keep the temp dir (config, log, files) afterwards
+```
+
+It starts copyparty from source on 127.0.0.1 and a free port with the fork's tested config
+(admin, alice, bob, carol; `@family`; home folders, `/family`, `/common`), grants on, seeded
+files, alice's `proj/` granted to bob and a share link of alice's `trip/` (`server.js` has the
+passwords and seed), and stops it at the end; it exits non-zero on any failure. Scenarios are in
+`tests/e2e/specs/`, one file per behaviour, and get from `fixtures.js`: `loginAs(user)`, `press`
+(a tap on the phone sizes, a click on desktop), `row(page, name)` (a folder's name ends in `/`),
+`ls(user, vp)` and `put(user, vp, body)` for server state. Assert on what a person sees (roles,
+labels, text) and on `?ls`, never on our function or class names. Scenarios run in parallel
+against one server: one that changes files makes its own folder, named after
+`test.info().project.name`. Each scenario runs as `<browser>-desktop` (1440x900),
+`<browser>-phone` (412x915, touch) and `<browser>-small-phone` (360x800, touch); Firefox and WebKit
+are skipped with a note when not installed. A failure leaves a trace in
+`tests/e2e/test-results/` (`npx playwright show-trace <zip>` from `tests/e2e`).
+
+## Hand check in Chrome
+
 This is the setup that works; each step stops a trap that cost a session time.
 
-## Steps
+### Steps
 
 1. **Config in the scratchpad**, one file per server: `[global]` with the ticket's options
    (`js-browser: /.cpr/w/fork-browser.js`, `js-other: …`, `grants: /shared`, `harden`,
@@ -36,13 +64,13 @@ This is the setup that works; each step stops a trap that cost a session time.
 7. **Record** what was checked under the ticket's `## Comments`, then stop the servers and close
    the tab.
 
-## Several agents at once
+### Several agents at once
 
 Agents share one Chrome. Give each its own loopback address (`127.0.0.2`, `.3`, `.4`, …) and its
 own ports, so cookies never mix, and have each create its own tab with `tabs_create_mcp` and act
 only in that tab. Each agent stops only its own servers, by its config path.
 
-## What the Chrome extension can't do
+### What the Chrome extension can't do
 
 Say so in the ticket rather than claim the check; list it for the user's own check.
 

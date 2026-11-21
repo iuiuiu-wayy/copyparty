@@ -1,0 +1,11 @@
+{
+  "name": "copyparty-fork-e2e",
+  "private": true,
+  "description": "fork-only, dev-only: end-to-end tests of the file browser in a real browser; run ./scripts/fork-e2e.sh",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1"
+  }
+}
