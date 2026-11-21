@@ -9,7 +9,8 @@
 //   forkui.icon(name)     an inline SVG icon (aria-hidden), names in ICONS
 //   forkui.style(css)     appends a <style>
 //   forkui.narrow         matchMedia of the phone layout (.matches, 'change' events)
-//   forkui.menu(opts)     a popup menu on a trigger button, a bottom sheet at phone width
+//   forkui.menu(opts)     a popup menu on a trigger button, a bottom sheet at phone width;
+//                         an item is a command (select: fn) or a link (href)
 //   forkui.dialog(opts)   a modal <dialog>: Esc, tap outside, back gesture, focus returns
 // Light theme only (design tokens on :root, --fk-*). English strings, no tl/.
 
@@ -29,7 +30,11 @@
         'home': 'M3 7.5a1.5 1.5 0 0 1 1.5-1.5h4.6l2 2h8.4a1.5 1.5 0 0 1 1.5 1.5v8.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18z',
         'people': 'M9 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 1 0 0 7zM2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.3a3.5 3.5 0 0 1 0 6.4M18 14.4c2.1.8 3.5 2.8 3.5 5.6',
         'clock': 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 7v5l3.5 2',
-        'cloud': 'M7 18.5a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 9.6a4.5 4.5 0 0 1-.5 8.9z'
+        'cloud': 'M7 18.5a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 9.6a4.5 4.5 0 0 1-.5 8.9z',
+        'key': 'M15 3.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 1 0 0-11zM11 13L3.5 20.5M6 18l2.5 2.5M8.5 15.5L11 18',
+        'link': 'M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1',
+        'tune': 'M4 7h10M18 7h2M16 5v4M4 17h2M10 17h10M8 15v4',
+        'logout': 'M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14M10 8l-4 4l4 4M6 12h10'
     };
 
     function icon(name) {
@@ -104,23 +109,24 @@
         'background:transparent;color:var(--fk-muted);cursor:pointer;font:inherit}',
         '.fk-ibtn:hover{background:var(--fk-hover)}',
         '.fk-ibtn:active{background:var(--fk-press)}',
-        '.fk-ibtn:focus-visible,.fk-menu button:focus-visible{outline:2px solid var(--fk-focus);outline-offset:-2px}',
+        '.fk-ibtn:focus-visible,.fk-menu [role=menuitem]:focus-visible{outline:2px solid var(--fk-focus);outline-offset:-2px}',
 
         // menus: a card under the trigger; a bottom sheet at phone width
         '.fk-menu{margin:0;padding:8px 0;border:0;border-radius:4px;min-width:200px;max-width:calc(100vw - 16px);',
         'max-height:calc(100dvh - 16px);overflow:auto;box-sizing:border-box;background:var(--fk-surface);',
         'color:var(--fk-text);box-shadow:var(--fk-shadow);font:14px/1.4 var(--fk-font)}',
-        '.fk-menu button{display:flex;align-items:center;gap:12px;width:100%;min-height:var(--fk-tap);',
+        '.fk-menu [role=menuitem]{display:flex;align-items:center;gap:12px;width:100%;min-height:var(--fk-tap);',
         'padding:0 16px;margin:0;border:0;background:transparent;color:inherit;font:inherit;',
-        'text-align:start;cursor:pointer;border-radius:0}',
-        '.fk-menu button:hover,.fk-menu button:focus{background:var(--fk-hover)}',
+        'text-align:start;text-decoration:none;cursor:pointer;border-radius:0;box-sizing:border-box}',
+        '.fk-menu [role=menuitem]:hover,.fk-menu [role=menuitem]:focus{background:var(--fk-hover)}',
         '.fk-menu .fk-ico{color:var(--fk-muted)}',
+        '.fk-menu .fk-sep{margin:8px 0;border:0;border-top:1px solid var(--fk-line)}',
         '.fk-menu.fk-pos{position:fixed;inset:auto}',
         '@supports (position-area: block-end){.fk-menu.fk-anc{position-area:block-end span-inline-start;',
         'position-try-fallbacks:flip-block,flip-inline,flip-block flip-inline;inset:auto;margin:4px 0}}',
         '.fk-menu.fk-sheet{position:fixed;inset:auto 0 0 0;width:auto;max-width:none;min-width:0;',
         'max-height:80dvh;border-radius:var(--fk-r) var(--fk-r) 0 0;padding:8px 0 calc(8px + env(safe-area-inset-bottom))}',
-        '.fk-menu.fk-sheet button{min-height:48px;font-size:16px}',
+        '.fk-menu.fk-sheet [role=menuitem]{min-height:48px;font-size:16px}',
         '.fk-menu.fk-sheet::backdrop{background:rgba(0,0,0,.4)}',
         '.fk-sheet-h{margin:4px 16px 8px;font:500 14px/1.4 var(--fk-font);color:var(--fk-muted)}',
 
@@ -205,6 +211,8 @@
 
     // opts: trigger (a <button>), label (the menu's name), items: a function returning
     // [{ label, icon, select: fn }] (called on every open, so it can follow upstream's state);
+    // an item with href instead of select is a link (opens in a new tab, copies as a url),
+    // and { sep: true } a separator line between groups of items;
     // optional title, shown as the sheet's heading on a phone.
     // Returns { el, open(fromKeyboard), close(), isOpen() }.
     function menu(opts) {
@@ -234,10 +242,18 @@
         }
 
         function item(it) {
-            return el('button', {
-                type: 'button', role: 'menuitem', tabindex: '-1',
+            if (it.sep)
+                return el('hr', { class: 'fk-sep' });
+            return el(it.href ? 'a' : 'button', {
+                type: it.href ? null : 'button', href: it.href || null, role: 'menuitem', tabindex: '-1',
                 on: {
-                    click: function () {
+                    click: function (e) {
+                        // a link: the browser follows it (or opens a new tab) as for any link
+                        if (it.href) {
+                            if (!(e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey))
+                                close(true);
+                            return;
+                        }
                         close(true);
                         it.select();
                     }

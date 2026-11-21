@@ -141,24 +141,17 @@
 
     var morebtn = el('button', { type: 'button', class: 'fk-ibtn', 'aria-label': 'More tools' }, ui.icon('more'));
 
-    // the avatar: the account holder's initial; until the account menu (ticket 10) it opens
-    // the control panel, which has change password and logout, like upstream's #acc_info
-    var nocpla = !fullui && (window.ui_nocpla || /[?&]nocpla\b/.exec(sloc0)),
-        noacci = !fullui && (window.ui_noacci || /[?&]noacci\b/.exec(sloc0)),
+    // the avatar: the account holder's initial; forkacct.js makes it open the account menu.
+    // Not there for a guest, nor with upstream's ui_noacci, which hides its account box
+    var noacci = !fullui && (window.ui_noacci || /[?&]noacci\b/.exec(sloc0)),
         initial = (acct || '?').charAt(0).toUpperCase();
 
-    var avatar = guest || noacci ? null : el(nocpla ? 'span' : 'a', {
-        class: 'fk-avatar', href: nocpla ? null : SR + '/?h',
-        role: nocpla ? 'img' : null,
-        'aria-label': nocpla ? acct : 'Account: ' + acct, title: acct
+    var avatar = guest || noacci ? null : el('button', {
+        type: 'button', class: 'fk-avatar', 'aria-label': 'Account: ' + acct, title: acct
     }, el('span', { 'aria-hidden': 'true', text: initial }));
 
     var top = el('header', { class: 'fk-top' }, [menubtn, brand, search, morebtn, avatar]);
     document.body.insertBefore(top, document.body.firstChild);
-
-    // upstream's account box stays reachable where we have no avatar link for it
-    if (!guest && nocpla && !noacci)
-        de.classList.add('fk-acci');
 
     ui.menu({
         trigger: morebtn, label: 'More tools', title: 'More tools', items: function () {
@@ -439,7 +432,6 @@
             'html.fk body{font-family:var(--fk-font)}',
             'html.fk #ops,html.fk #acc_info,html.fk #srv_info,html.fk #entree,html.fk #treeh,',
             'html.fk #docul,html.fk #treepar{display:none!important}',
-            'html.fk.fk-acci #acc_info{display:block!important;position:static;text-align:end;padding:4px 16px}',
             'html.fk #op_cfg div:has(>#themes){display:none}',
             'html.fk #op_cfg h3:has(+div>#themes){display:none}',
             '.fk-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;',
@@ -457,7 +449,8 @@
             '.fk-search:focus-within{background:var(--fk-surface);box-shadow:var(--fk-shadow)}',
             '.fk-q{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--fk-text);font:16px var(--fk-font)}',
             '.fk-avatar{display:inline-flex;align-items:center;justify-content:center;flex:none;width:var(--fk-tap);',
-            'height:var(--fk-tap);border-radius:50%;text-decoration:none}',
+            'height:var(--fk-tap);padding:0;margin:0;border:0;border-radius:50%;background:transparent;cursor:pointer}',
+            '.fk-avatar:hover{background:var(--fk-hover)}',
             '.fk-avatar span{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;',
             'border-radius:50%;background:#0b8043;color:#fff;font:500 16px var(--fk-font)}',
             '.fk-menubtn{display:none}',

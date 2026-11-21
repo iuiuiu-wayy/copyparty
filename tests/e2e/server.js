@@ -18,6 +18,14 @@ const ACCOUNTS = {
     admin: 'adminpw1', alice: 'alicepw1', bob: 'bobpw111', carol: 'carolpw1', dave: 'davepw11',
 };
 
+// accounts a scenario may log out: a logout ends every session of that account, so each
+// worker running at the same time gets its own (fixture logoutUser, by parallelIndex)
+const LOGOUT_USERS = [];
+for (let i = 0; i < 16; i++) {
+    LOGOUT_USERS.push(`out${i}`);
+    ACCOUNTS[`out${i}`] = `outpw${100 + i}`;
+}
+
 // a share link alice made of her /home/alice/trip/ folder
 const SHARE_KEY = 'e2etripshare01';
 
@@ -244,4 +252,5 @@ async function start() {
 module.exports = start;
 module.exports.ACCOUNTS = ACCOUNTS;
 module.exports.SEED = SEED;
+module.exports.LOGOUT_USERS = LOGOUT_USERS;
 module.exports.session = session;

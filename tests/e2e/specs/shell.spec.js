@@ -14,7 +14,7 @@ test('an account holder gets a top bar and a nav', async ({ page, loginAs, nav, 
         await expect(top.getByText('e2eparty')).toBeVisible();
     await expect(top.getByRole('searchbox', { name: 'Search' })).toBeVisible();
     await expect(top.getByRole('button', { name: 'More tools' })).toBeVisible();
-    await expect(top.getByRole('link', { name: 'Account: alice' })).toBeVisible();
+    await expect(top.getByRole('button', { name: 'Account: alice' })).toBeVisible();
 
     const n = await nav();
     if (narrow)
@@ -239,7 +239,7 @@ test.describe('a guest on a share link', () => {
         await expect(page.getByRole('banner')).toBeVisible();
         await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Main menu' })).toHaveCount(0);
-        await expect(page.getByRole('banner').getByRole('link', { name: /^Account/ })).toHaveCount(0);
+        await expect(page.getByRole('banner').getByRole('button', { name: /^Account/ })).toHaveCount(0);
         await expect(page.getByRole('searchbox')).toHaveCount(0);
 
         await press(page.getByRole('button', { name: 'More tools' }));
