@@ -115,6 +115,8 @@ test('several items open upstream\'s batch rename', async ({ page, loginAs, put,
         const link = (name) => row(page, name).getByRole('link', { name, exact: true });
         await longPress(link('one.txt'));
         await expect(box(page, 'one.txt')).toBeChecked();
+        // forklist.js swallows clicks for 400 ms after a long-press
+        await page.waitForTimeout(500);
         await link('two.txt').tap();
     } else {
         await row(page, 'one.txt').click();

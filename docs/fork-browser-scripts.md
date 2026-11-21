@@ -188,6 +188,21 @@ handler, so upstream's search posts it and renders the hits. Traps found while b
 - **The server rate-limits searches** (429 when the last one took over 0.7 s and came less
   than 0.7 s ago); upstream writes the refusal in `#srch_q` (class `err`).
 
+## Drive-ux scripts: Move to… (forkmove.js)
+
+`web/forkmove.js` replaces `forkui.actions.move` with a folder-picker dialog and exposes
+`forkui.move.open(rows)`. It moves with paste's request (as `dragmove.js` does) and restyles
+`dragmove.js`'s `fmv-hl` / `fmv-img` from its own `<style>`. Traps found while building it:
+
+- **A folder's perms come from its own `?ls`** (`perms`), not from the parent's listing; a
+  folder with no path on disk (`/`, `/home/`) answers with empty `perms`, so it is never
+  pickable, which is right (nothing can be written there).
+- **`dirs[].href` in `?ls` is relative and URL-quoted** (and may carry `?k=` with dirkeys):
+  join it to the folder's encoded path, drop the query, and compare decoded paths when
+  checking "inside a folder being moved".
+- **In e2e tests, wait half a second after a long-press before the next tap**: `forklist.js`
+  swallows clicks for 400 ms after a long-press, so a tap right after it selects nothing.
+
 ## Drive-ux scripts: rename (forkrename.js)
 
 `web/forkrename.js` wraps `fileman.rename`, so every caller (the selection bar, the row menu,
