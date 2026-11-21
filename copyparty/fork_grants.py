@@ -29,11 +29,11 @@ if True:  # pylint: disable=using-constant-test
         from .authsrv import VFS, AuthSrv
         from .svchub import SvcHub
 
-# the fork's web files: the grants page, the grant button, the share button's wording
-# (linkbtn.js), the file-browser script loader (fork-browser.js), the file list's row
-# checkboxes (rowsel.js), drag to move (dragmove.js), the control panel tidy-up
-# (ctlpanel.js) and the drive-ux look (forkui.js, forkshell.js, forkacct.js,
-# forknew.js, forklist.js, forkrowmenu.js, forkviews.js, forksearch.js, forkmove.js,
+# the fork's web files: the grants page, the grant button, the file-browser
+# script loader (fork-browser.js), the file list's row checkboxes (rowsel.js),
+# drag to move (dragmove.js), the control panel tidy-up (ctlpanel.js) and the
+# drive-ux look (forkui.js, forkshell.js, forkacct.js, forknew.js, forklist.js,
+# forkrowmenu.js, forkviews.js, forksearch.js, forkshare.js, forkmove.js,
 # forkrename.js, forkgrid.js); registered here so upstream's list in __init__ stays
 # as it is
 RES.update(
@@ -41,7 +41,6 @@ RES.update(
         "web/grants.html",
         "web/grants.js",
         "web/grantbtn.js",
-        "web/linkbtn.js",
         "web/fork-browser.js",
         "web/rowsel.js",
         "web/dragmove.js",
@@ -54,6 +53,7 @@ RES.update(
         "web/forkrowmenu.js",
         "web/forkviews.js",
         "web/forksearch.js",
+        "web/forkshare.js",
         "web/forkmove.js",
         "web/forkrename.js",
         "web/forkgrid.js",
