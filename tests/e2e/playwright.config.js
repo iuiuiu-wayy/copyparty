@@ -48,6 +48,9 @@ module.exports = defineConfig({
     testDir: './specs',
     globalSetup: require.resolve('./server.js'),
     fullyParallel: true,
+    // Playwright's default (half the cores) loads one copyparty and the browsers so much that
+    // the slower scenarios (search, resumed uploads) time out; four keep the run reliable
+    workers: 4,
     forbidOnly: true,
     reporter: [['list']],
     timeout: 30000,

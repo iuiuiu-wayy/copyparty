@@ -6,6 +6,29 @@ const base = require('playwright/test');
 const { ACCOUNTS, LOGOUT_USERS, session } = require('./server.js');
 
 const test = base.test.extend({
+    // fail fast when a script error crashes the page (upstream's crash box, #exbox, covers
+    // it): close the page so the step waiting on it fails now, not at its timeout, then fail
+    // the test with the error. Errors upstream lets pass (a rejected promise, a fetch cut off
+    // by a navigation) show no crash box and are left alone
+    page: async ({ page }, use) => {
+        const errs = [];
+        const crashed = (p) => p.evaluate(() => !!document.getElementById('exbox')).catch(() => false);
+        const watch = (p) => p.on('pageerror', async (e) => {
+            if (!(await crashed(p))) {
+                await new Promise((r) => setTimeout(r, 200));
+                if (!(await crashed(p)))
+                    return;
+            }
+            errs.push(e);
+            p.close().catch(() => {});
+        });
+        watch(page);
+        page.context().on('page', watch);
+        await use(page);
+        if (errs.length)
+            throw new Error(`the page crashed: ${errs[0].stack || errs[0].message}`);
+    },
+
     // set here, not in the config: the server's port is only known after globalSetup
     baseURL: async ({}, use) => {
         await use(process.env.E2E_BASE);
