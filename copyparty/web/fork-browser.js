@@ -16,6 +16,7 @@
         'rowsel.js',
         'dragmove.js',
         'forklist.js',
+        'forknew.js',
     ];
 
     var me = document.currentScript;
