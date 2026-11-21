@@ -39,6 +39,7 @@ the Nextcloud features we want to keep:
 | pick several files like Nextcloud | ✅ `web/rowsel.js` through `js-browser: /.cpr/w/fork-browser.js`, fork-only; a checkbox on every row of the list view and a select-all box in the header, mirroring upstream's selection, so cut / copy / paste, zip, dl, share and grant act on what is ticked. Row click, `space`, shift-click and the bottom bar work as upstream; grid view keeps its own multiselect |
 | move files by dragging, like Nextcloud | ✅ `web/dragmove.js` through `js-browser: /.cpr/w/fork-browser.js`, fork-only; drag rows of the list view onto a folder row, a folder in the sidebar tree or a breadcrumb, and they move there with paste's `?move` request. A selected row carries the whole selection, an unselected one only itself. A progress toast with abort, then one toast naming each item the server refused and why (its reason, minus the URL line). A drop moves without asking. Checked by hand in Chrome, no automated check (ticket 02's Comments; [its upstream edit](#upstream-edit-drag-to-move-dragmovejs)): in grid view and search results no move-drag starts; a pointer reported as touch makes rows non-draggable; a file drag (a `File` in the `DataTransfer`) still gets up2k's upload overlay and uploads; a move-drag carries the items' URLs as `text/uri-list` and `text/plain`. Not checked there: a real file from the desktop, devtools touch emulation, and dropping a name into another tab or the address bar. Rows are draggable wherever you may move, so text in a row can't be selected by dragging there |
 | reach the control panel from the file browser | ✅ on the `drive-ux` branch: `web/forkacct.js`, fork-only; the account menu on the top bar's avatar (the account's initial): Change password (the control panel's form, focused), My share links, My grants, Control panel, Log out, at the `--rp-loc` prefix. Hidden for guests and with `ui_noacci`; Control panel left out with `ui_nocpla` (both unless `?fullui`), as upstream hides its own account box and link. [Its upstream edit](#upstream-edit-account-menu-forkacctjs) |
+| search like Drive | ✅ on the `drive-ux` branch: `web/forksearch.js`, fork-only; the top bar's search box searches names under the current folder (upstream's search, results in the list), with Type and Modified chips, Advanced (upstream's full form), `/` to focus, Esc or ✕ to get the folder back. Only where upstream shows its search (indexed volumes, not on share links). [Its upstream edit](#upstream-edit-drive-ux-search-forksearchjs) |
 | a control panel that makes sense to users | ✅ `js-other: /.cpr/w/ctlpanel.js` + `nb`, fork-only; "other stuff:" becomes "more:" with "your share links", "your grants", recently added files, logout everywhere (in that order); "reset client settings", the `π` link and "powered by" are hidden; the share links page gets an intro line ("Links anyone can open without an account. Revoke one to stop it working."). With `chpw`, a "change password:" form of its own (new password, repeat, button) sits under "welcome back"; upstream's small "change password" link next to the login button is hidden |
 
 
@@ -230,6 +231,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [drive-ux frame (forkui.js, forkshell.js)](#upstream-edit-drive-ux-frame-forkuijs-forkshelljs) | `scripts/sfx.ls` only |
 | [drive-ux list and selection bar (forklist.js)](#upstream-edit-drive-ux-list-and-selection-bar-forklistjs) | `scripts/sfx.ls` only |
 | [account menu (forkacct.js)](#upstream-edit-account-menu-forkacctjs) | `scripts/sfx.ls` only |
+| [drive-ux search (forksearch.js)](#upstream-edit-drive-ux-search-forksearchjs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -664,6 +666,43 @@ every place this fork changes an upstream file, one section each below. On a mer
   `"chpw"`, `?shares`, `?grants`, and on the splash page `#x`, `#un`, `#cc`. After an upstream
   merge, run `./scripts/fork-e2e.sh specs/account.spec.js`, and once behind `rp-loc` check that
   each entry keeps the prefix (the harness has no `rp-loc` server)
+
+### upstream edit: drive-ux search (forksearch.js)
+
+- **what it is:** the search box of the Drive-style file browser (drive-ux ticket 14; on the
+  `drive-ux` branch until ticket 17). Typing (500 ms after the last key) or Enter in the top
+  bar's box runs upstream's search for names under the current folder; the hits are upstream's
+  search results in the list. Below the top bar a chip row (`role=toolbar` "Search filters",
+  one tab stop, scrolls sideways on a phone): **Type** (Images, Videos, Audio, PDFs, Documents,
+  Spreadsheets, Presentations, Archives: extension groups), **Modified** (today, last 7 / 30
+  days, this year, last year, a custom range in a small dialog) and **Advanced** (upstream's
+  search panel, its name and date fields filled in). A set chip shows its value and is named
+  "Type: Images". `/` focuses the box; Esc in it or its ✕ end the search through upstream's
+  close-search link, and opening a folder ends it too. A hidden status line says how many
+  hits (or the server's refusal). The query is written straight into upstream's raw field
+  `#q_raw` and run by that field's Enter handler, in the syntax its form writes: upstream
+  searches every volume the account can read, so "under this folder" is the term
+  `( path like <folder> or path like <folder>/* )` (the form's path field can only say "starts
+  with", which also takes `<folder>2/`), and a type is `( name like *.jpg or ... )`. Name
+  words follow the form's name field (each word must be in the name; `-word`, `^`, `$`).
+  Dates are local times sent as the UTC text dates the form takes. The box shows only where
+  upstream shows its search tab (read + an index; not on a share link): `forkshell.js` hides it
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forksearch.js`; `fork_grants.py` adds
+  it to upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` (after `forklist.js`);
+  `forkshell.js` exposes `forkui.shell` (box, input, `opentool`) and calls
+  `forkui.shell.onsearch` on submit when set; two icons (`check`, `caret`) in `forkui.js`
+- **fork files:** `copyparty/web/forksearch.js`, `tests/test_fork_drive_search.py`,
+  `tests/e2e/specs/search.spec.js`; the harness seeds carol's `search/`, `search2/` and
+  `other/` folders (one file with a 2019 modified time), a volume `/attic` for carol with no
+  index (`d2d`), and waits for the startup scan before the tests start
+- **on conflict:** nothing to merge, but search leans on upstream names, each listed in
+  `tests/test_fork_drive_search.py`: `search_ui.render` (wrapped), `#q_raw` and its
+  `onkeydown` Enter handler, the `#srch_<k>v` / `#srch_<k>c` fields (`name`, `dtl`, `dtu`),
+  `#unsearch`, `#srch_q` with its `err` class, `reload_browser` (wrapped), `treectl.show` /
+  `hidden`, `#opa_srch`'s `data-dep="idx"`, and on the server the query keywords (`(`, `)`,
+  `or`), `path` as volume + folder, and that it searches every readable volume. Opening a hit
+  is upstream's: a text or other non-media hit opens its folder (the search ends), an image
+  the lightbox. After an upstream merge, run `./scripts/fork-e2e.sh specs/search.spec.js`
 
 ## grants: fork-only folder sharing between accounts
 

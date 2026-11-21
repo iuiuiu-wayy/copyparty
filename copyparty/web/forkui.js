@@ -22,6 +22,9 @@
 
     // 24x24 outline paths, drawn for this fork (no third-party icon set)
     var ICONS = {
+        // search chips (forksearch.js)
+        'check': 'M5 12.5l4.5 4.5L19 7',
+        'caret': 'M7 10l5 5l5-5',
         // the list and selection bar (forklist.js)
         'share': 'M9 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 1 0 0 7zM2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M19 8v6M16 11h6',
         'download': 'M12 4v11M7 10l5 5l5-5M5 20h14',

@@ -123,12 +123,13 @@
         role: 'search', class: 'fk-search', on: {
             submit: function (e) {
                 e.preventDefault();
-                runsearch(q.value);
+                (ui.shell.onsearch || runsearch)(q.value);
             }
         }
     }, [ui.icon('search'), q]);
 
-    // for now the box fills upstream's name search and opens its panel (ticket 14 does more)
+    // without forksearch.js (which sets ui.shell.onsearch) the box fills upstream's name
+    // search and opens its panel
     function runsearch(txt) {
         if (!QS('#op_search.act'))
             opentool('search');
@@ -152,6 +153,9 @@
 
     var top = el('header', { class: 'fk-top' }, [menubtn, brand, search, morebtn, avatar]);
     document.body.insertBefore(top, document.body.firstChild);
+
+    // for the scripts after this one: the search box (forksearch.js) and opening a tool
+    ui.shell = { search: search, q: q, opentool: opentool };
 
     ui.menu({
         trigger: morebtn, label: 'More tools', title: 'More tools', items: function () {
