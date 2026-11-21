@@ -10,10 +10,10 @@
     var SCRIPTS = [
         'forkui.js',
         'forkshell.js',
+        'forkacct.js',
         'grantbtn.js',
         'linkbtn.js',
         'rowsel.js',
-        'acclink.js',
         'dragmove.js',
         'forklist.js',
     ];

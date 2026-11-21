@@ -3,7 +3,7 @@
 'use strict';
 
 const base = require('playwright/test');
-const { ACCOUNTS, session } = require('./server.js');
+const { ACCOUNTS, LOGOUT_USERS, session } = require('./server.js');
 
 const test = base.test.extend({
     // set here, not in the config: the server's port is only known after globalSetup
@@ -26,6 +26,15 @@ const test = base.test.extend({
             if (!(await page.context().cookies()).some((c) => c.name === 'cppwd'))
                 throw new Error(`login as ${user} failed: ${r.status()}`);
         });
+    },
+
+    // an account this worker alone uses, for a scenario that logs out (which ends every
+    // session of the account, in every worker)
+    logoutUser: async ({}, use, info) => {
+        const u = LOGOUT_USERS[info.parallelIndex];
+        if (!u)
+            throw new Error(`no logout account for worker ${info.parallelIndex}; add some in server.js`);
+        await use(u);
     },
 
     // tap on a touch screen, click otherwise
