@@ -29,6 +29,10 @@ _Avoid_: mount, share (when meaning a volume)
 An account holder's own volume, created for each account (`/home/<name>`).
 _Avoid_: personal folder, user dir
 
+**Shared with me**:
+Every space an account holder can open that someone else gave them: grants they are a recipient of, and volumes the admin opened to them or to one of their groups. Their own home folder is not in it, and neither are share links, which are opened by their URL.
+_Avoid_: shared folders, shared drives
+
 ## Giving access
 
 **Owner**:

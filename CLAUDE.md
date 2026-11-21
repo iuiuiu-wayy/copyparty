@@ -50,6 +50,11 @@ Lint config lives in `pyproject.toml` (black 21.12b0, isort, ruff line 120, pyli
   imported defensively. Keep new server code dependency-free.
 - The web UI is vanilla JS/CSS/HTML in `copyparty/web/` with no build step; translations in
   `copyparty/web/tl/`.
+- **Browser support (fork UI):** the last two years of Chrome, Samsung Internet, Safari (iOS 17+)
+  and Firefox (Ubuntu's default). A feature one of them lacks (e.g. anchor positioning in
+  Firefox, `<dialog closedby>` in Safari) gets a small fallback in our own code; no external
+  polyfills (the Pi works offline, `--csp-ui` blocks other origins). Older browsers get a plain
+  page that still works.
 
 ## Architecture
 
