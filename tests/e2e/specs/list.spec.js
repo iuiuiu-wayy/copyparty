@@ -265,7 +265,7 @@ test('grid view still shows the files, and selects', async ({ page, loginAs, sel
     await expect(row(page, 'plan.txt')).toBeVisible();
 
     await page.keyboard.press('g');
-    const tile = page.locator('#ggrid').getByRole('link', { name: /plan\.txt/ });
+    const tile = page.locator('#fk-grid').getByRole('link', { name: 'plan.txt', exact: true });
     await expect(tile).toBeVisible();
     await expect(row(page, 'plan.txt')).toBeHidden();
 

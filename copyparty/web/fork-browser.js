@@ -23,6 +23,7 @@
         'forkmove.js',
         'forkrename.js',
         'forkview.js',
+        'forkgrid.js',
     ];
 
     var me = document.currentScript;
