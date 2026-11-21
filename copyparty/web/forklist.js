@@ -389,7 +389,6 @@
             add(one, 'Copy link', function () {
                 cliptxt(one.href, function () { toast.ok(2, L.clipped); });
             });
-            add(n && !hid('fgrant'), 'Share with people', function () { ebi('fgrant').click(); });
             add(true, 'Select all', function () { msel.evsel({}, 'add'); });
             add(n, 'Invert selection', function () { msel.evsel({}, 't'); });
             return ret;

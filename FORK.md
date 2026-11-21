@@ -31,7 +31,7 @@ the Nextcloud features we want to keep:
 | manage users | ❌ **config file only** -- edit, then reload (`kill -USR1` / `[reload cfg]` button) |
 | own folder per user | ✅ `[/home/${u}]` volume, one block covers all users |
 | shared folders | ✅ admin-defined volume + `[groups]` |
-| **user shares a folder with another user** | ✅ grants (`grants: /shared` + `js-browser: /.cpr/w/fork-browser.js`), fork-only; a "🤝 people" button (a grant) beside upstream's share button (whose share links now come from the Share dialog) in the file browser, to an account or a config group, read-only or read + upload, optional expiry; owners revoke and extend them on `?grants`, linked from the control panel |
+| **user shares a folder with another user** | ✅ grants (`grants: /shared` + `js-browser: /.cpr/w/fork-browser.js`), fork-only; the file browser's Share dialog, "Add people and groups", gives a folder to an account or a config group, read-only or read + upload, optional expiry; owners revoke and extend them on `?grants`, linked from the control panel |
 | share links | ✅ `shr: /share`; password, expiry, optional upload; owner manages them in the control panel |
 | stream video | ✅ served as-is with range requests; no video transcoding (fine for the Pi) |
 | edit text | ✅ text viewer + two markdown editors |
@@ -239,6 +239,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [share link revoked during a reload](#upstream-edit-share-link-revoked-during-a-reload) | `authsrv.py` |
 | [drive-ux Move to… (forkmove.js)](#upstream-edit-drive-ux-move-to-forkmovejs) | `scripts/sfx.ls` only |
 | [drive-ux rename dialog (forkrename.js)](#upstream-edit-drive-ux-rename-dialog-forkrenamejs) | `scripts/sfx.ls` only |
+| [Share dialog: add people (forkpeople.js, ?grants&j)](#upstream-edit-share-dialog-add-people-forkpeoplejs-grantsj) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -261,7 +262,7 @@ every place this fork changes an upstream file, one section each below. On a mer
   after the `eshare` dispatch (both marked `# fork`, sharing the import); `web/splash.html`: an
   "edit grants" link (`id="yg"`) right after "edit shares" (reads `(this.args.grants or '')`, so
   upstream's test `Cfg`, which has no `grants`, still renders it); `scripts/sfx.ls`:
-  `web/grantbtn.js`, `web/grants.html` and `web/grants.js`; `httpcli.py` `run`: the `http_request`
+  `web/grants.html` and `web/grants.js`; `httpcli.py` `run`: the `http_request`
   line (see `harden`); `__main__.py` `add_share`: the `--grants` and `--grants-db` options;
   `cfg.py` `flagcats["others"]`: one `grant_who=auth` line after `shr_who=auth` (registers the
   volflag, so copyparty doesn't warn that it's unrecognized); `svchub.py` `run`: one import +
@@ -269,10 +270,10 @@ every place this fork changes an upstream file, one section each below. On a mer
   through `SvcHub.reload` and checks under `AuthSrv.mutex`)
 - **fork files:** `copyparty/fork_grants.py`, `copyparty/fork_harden.py` (dot rule and upload-name
   rule also on grant volumes, `harden_nodes`), `copyparty/fork_util.py` (`grants_top`),
-  `copyparty/web/grants.html`, `copyparty/web/grants.js`, `copyparty/web/grantbtn.js` (the page
+  `copyparty/web/grants.html`, `copyparty/web/grants.js` (the page
   loads its own template through `httpsrv.load_jinja2_resource` and adds it to `hsrv.j2` as
   `fork_grants` on first use, so it renders through `HttpCli.j2s` while httpsrv's template list is
-  untouched; `fork_grants.py` also adds those three files to upstream's `RES` set at import, which
+  untouched; `fork_grants.py` also adds those files to upstream's `RES` set at import, which
   is what lets `.cpr/w/grants.js` be served), `tests/test_fork_grants.py`
 - **on conflict:** keep both sides; grant volumes mirror how `_reload` maps a share link
   (`shr_src`, `_get_share_src`, `shr_all_aps`, hidden `.hist` and subvolumes), so if upstream
@@ -288,10 +289,10 @@ every place this fork changes an upstream file, one section each below. On a mer
   that, change it too, or grants could go to anyone holding a share link password
   (`test_refused_to_a_share_link_password` catches it). If upstream renames `hsrv.j2`, `j2s`,
   `load_jinja2_resource` or `RES`, the grants page breaks: `test_page_*` catch the template side;
-  `test_every_loaded_browser_script_is_registered_and_served` catches `RES` moving. `web/grantbtn.js` leans on upstream's
-  browser.js by name: `fileman.render`, `msel.getsel`, `#fshr`, `#wfm`, `#shui`, `perms`,
-  `in_shr`, `acct`; after an upstream merge, open the file browser and check the grant button
-  still shows and opens its dialog (no automated check)
+  `test_every_loaded_browser_script_is_registered_and_served` catches `RES` moving. The file browser's way to
+  grant is the Share dialog's Add people (see
+  [forkpeople.js](#upstream-edit-share-dialog-add-people-forkpeoplejs-grantsj); the 🤝 people
+  button, `web/grantbtn.js`, is retired)
 
 ### upstream edit: control panel tidy-up (ctlpanel.js)
 
@@ -299,7 +300,7 @@ every place this fork changes an upstream file, one section each below. On a mer
   /.cpr/w/ctlpanel.js`; behind `--rp-loc`, prefix that path)
 - **upstream lines touched:** none in templates: `splash.html`, `splash.js` and the other pages
   are untouched. `scripts/sfx.ls`: `web/ctlpanel.js`; `fork_grants.py` adds it to upstream's `RES`
-  next to `grantbtn.js`
+  next to the grants page's files
 - **fork files:** `copyparty/web/ctlpanel.js`, `tests/test_fork_grants.py`
   (`test_control_panel_script_is_served`, `test_control_panel_has_the_ids_the_script_moves`,
   `test_control_panel_password_form_is_served`,
@@ -332,7 +333,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **what it is:** file-browser script loader (`web/fork-browser.js`, loaded with `js-browser:
   /.cpr/w/fork-browser.js`; behind `--rp-loc`, prefix that path)
 - **upstream lines touched:** none in templates. `scripts/sfx.ls`: `web/fork-browser.js`;
-  `fork_grants.py` adds it to upstream's `RES` next to `grantbtn.js`
+  `fork_grants.py` adds it to upstream's `RES` next to the grants page's files
 - **fork files:** `copyparty/web/fork-browser.js`, `tests/test_fork_grants.py`
   (`test_every_loaded_browser_script_is_registered_and_served`, `test_file_browser_tag_the_loader_relies_on`)
 - **on conflict:** nothing to merge. It loads the scripts in its `SCRIPTS` list one after another
@@ -342,8 +343,8 @@ every place this fork changes an upstream file, one section each below. On a mer
   script because `--csp-ui` only allows scripts with the page's nonce;
   `test_file_browser_tag_the_loader_relies_on` renders `browser.html` and fails if the nonce or
   the `?_=` query leaves that tag. If upstream changes the csp (say to `'strict-dynamic'`),
-  recheck that the grant button still shows. The loading itself has no automated check; after an
-  upstream merge, open the file browser and check the grant button, the row checkboxes, the
+  recheck that the drive-ux look still shows. The loading itself has no automated check; after an
+  upstream merge, open the file browser and check the Share dialog, the row checkboxes, the
   control panel link and dragging a file onto a folder
 
 ### upstream edit: row checkboxes (rowsel.js)
@@ -351,7 +352,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **what it is:** row checkboxes in the file list (`web/rowsel.js`, loaded by `fork-browser.js`)
 - **upstream lines touched:** none: `browser.js`, `browser.css` and `browser.html` are untouched;
   the script injects its own `<style>`. `scripts/sfx.ls`: `web/rowsel.js`; `fork_grants.py` adds
-  it to upstream's `RES` next to `grantbtn.js`; one line in `fork-browser.js`'s `SCRIPTS`
+  it to upstream's `RES` next to the grants page's files; one line in `fork-browser.js`'s `SCRIPTS`
 - **fork files:** `copyparty/web/rowsel.js`, `tests/test_fork_grants.py`
   (`test_every_loaded_browser_script_is_registered_and_served`, `test_browser_names_the_row_checkboxes_rely_on`)
 - **on conflict:** nothing to merge, but the script leans on upstream's browser.js by name: it
@@ -372,7 +373,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **what it is:** drag to move in the file list (`web/dragmove.js`, loaded by `fork-browser.js`)
 - **upstream lines touched:** none: `browser.js`, `browser.css`, `browser.html` and `up2k.js` are
   untouched; the script injects its own `<style>`. `scripts/sfx.ls`: `web/dragmove.js`;
-  `fork_grants.py` adds it to upstream's `RES` next to `grantbtn.js`; one line in
+  `fork_grants.py` adds it to upstream's `RES` next to the grants page's files; one line in
   `fork-browser.js`'s `SCRIPTS`
 - **fork files:** `copyparty/web/dragmove.js`, `tests/test_fork_grants.py`
   (`test_every_loaded_browser_script_is_registered_and_served`, `test_browser_names_drag_move_relies_on`)
@@ -838,9 +839,9 @@ every place this fork changes an upstream file, one section each below. On a mer
   `?share` body keys and 201 reply, `?eshare=rm&skey=`, util.js's `noq_href`, `uricom_dec`,
   `get_evpath`, `hunpre`, `randstr`, `has`. After an upstream merge, run
   `./scripts/fork-e2e.sh specs/share.spec.js`
-- **known gap:** a grant mount refuses share links (`shr_who` "no", set in `fork_grants.py`)
-  but its listing still says `auth`, so upstream and the dialog offer Share there and the
-  server refuses with "you dont have perms to create shares from this volume" (shown)
+- **was a known gap:** a grant mount refuses share links but its listing said `auth`, so Share
+  showed there and the server refused; since ticket 09 the listing says `no` and Share is
+  hidden (see [Add people](#upstream-edit-share-dialog-add-people-forkpeoplejs-grantsj))
 
 ### upstream edit: share link revoked during a reload
 
@@ -914,6 +915,51 @@ every place this fork changes an upstream file, one section each below. On a mer
   `treectl.goto`, `fileman.tx`, `vsplit`, `uricom_enc`, `unpre`. After an upstream merge, run
   `./scripts/fork-e2e.sh specs/rename.spec.js`
 
+### upstream edit: Share dialog: add people (forkpeople.js, ?grants&j)
+
+- **what it is:** the Share dialog's top part, "Add people and groups" (drive-ux ticket 09; on
+  the `drive-ux` branch until ticket 17). For a folder: pick an account or a config group
+  (`?grants=rcpts`; groups show as "family (group)"), Role Viewer or Viewer and uploader (only
+  where the folder's perms hold write), Time limit never (default) / 1 hour / 1 day / 7 days /
+  30 days, and the folder name they see (default: the folder's own); Add posts `?grant`. Below,
+  the folder's grants (the owner's own rows of `?grants&j` whose `src` is the folder): who,
+  role, time left, and a state that isn't active ("expired", "paused: …"), each with Remove
+  (`?egrant=rm&gid=`). For a file the picker is disabled with "People can only be given
+  folders, use a link for a file."; with grants off (`?grants=rcpts` answers 400) the part is
+  hidden. Refusals are shown as the server words them (`role=alert`), results in the dialog's
+  status line. The dialog's first focus skips disabled or hidden fields. It replaces the 🤝
+  people button (`grantbtn.js`, retired with its registration, its upstream-names line and its
+  "Share with people" entries in the row menu and the selection bar's ⋮). Extending a grant
+  stays on the `?grants` page (My grants in the account menu)
+- **the json list:** `GET /?grants&j` (account-wide, `SR + '/?grants&j'`), in `fork_grants.py`
+  (`tx_grants`, rows from `_grant_rows`, shared with the page): `{"now": unixtime, "top":
+  "shared", "rows": [{"gid", "owner", "rcpt" ("bob" or "@family"), "src": "/vol/path/",
+  "name", "at": "/shared/<owner>/<name>/", "pr": "r" | "rw", "t1" (0 = never), "state"
+  (active / expired / suspended / broken / no members / hidden folder)}]}`; the page's checks
+  (401 for a guest, 400 with grants off; the caller's grants, every grant for `--shr-adm`)
+- **a grant takes no share links, and now says so:** a grant volume and the `/shared/...`
+  folders already had `shr_who: no` in their flags, but their listing config (`js_ls`, and the
+  page's `js_htm`) was the source volume's, saying `auth`, so upstream and the Share dialog
+  offered Share and the server refused. `_no_links_cfg` (`fork_grants.py`, at the end of
+  `mount_grants`) gives them copies with `shr_who: no`, so `can_shr` is false and Share is
+  hidden there (`test_grant_folders_say_they_take_no_share_links`)
+- **upstream lines touched:** none beyond the grants dispatch (`?grants` already reaches
+  `tx_grants`). `scripts/sfx.ls`: `web/forkpeople.js` (and `web/grantbtn.js` removed);
+  `fork_grants.py` adds it to upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` after
+  `forkshare.js`
+- **fork files:** `copyparty/web/forkpeople.js`, `copyparty/fork_grants.py`,
+  `tests/test_fork_grants.py` (`test_json_list_*`, `test_grant_folders_say_*`),
+  `tests/test_fork_drive_people.py`, `tests/e2e/specs/people.spec.js`
+- **on conflict:** nothing in upstream files. The names it leans on are in
+  `tests/test_fork_drive_people.py`: `apply_perms`' `shr_who` / `can_shr` lines and
+  `Object.assign(res, res.cfg)`, util.js copying `CGV1` onto `window`, `browser.html`'s `CGV1`,
+  authsrv's `js_ls` / `js_htm` (`shr_who` in both, `json_hesc`), httpcli's `cfg` / `cgv1`; plus
+  forkshare.js's `forkui.share` API. After an upstream merge, run
+  `./scripts/fork-e2e.sh specs/people.spec.js specs/share.spec.js`
+- **known gaps:** a volume that allows grants but not share links (`shr_who: no`, `grant_who:
+  auth`) has no Share at all, since the dialog hangs on upstream's `#fshr` (not our config);
+  the grant name is checked by the server only (a refusal says to pick another name)
+
 ## grants: fork-only folder sharing between accounts
 
 see `docs/adr/0001` and `.scratch/grants/spec.md`. Work in progress: tickets 06 (the tracer
@@ -940,23 +986,11 @@ volflag:
 
 what works so far:
 
-* the **grant button** (`web/grantbtn.js`), loaded by `web/fork-browser.js` with
-  `js-browser: /.cpr/w/fork-browser.js` (`--js-browser`; behind a reverse proxy with `--rp-loc`,
-  prefix that path). It reads "🤝 people" (tooltip: "give an account or group on this server
-  access to this folder") and sits beside upstream's share button in the file browser (its
-  share links now come from the drive-ux Share dialog, see
-  [forkshare.js](#upstream-edit-share-dialog-share-links-forksharejs-fork_sharespy)); it acts on the
-  current folder, or on the one folder selected; it
-  hides when a file or several things are selected, for guests, without read access, inside
-  `/shared/` and share links, and when grants are off (it asks `?grants=rcpts` once per page load).
-  Its dialog opens with "Gives an account or group on this server access to this folder. They
-  find it in their own file tree, no link needed.", then picks the recipient from `?grants=rcpts`, read-only or read + upload, the name
-  (default: the folder's name) and an optional expiry in hours / days / weeks, then posts
-  `?grant` and shows where the recipient finds it, or the server's refusal word for word. It wraps
-  upstream's `fileman.render` to update itself and reuses the share dialog's `#shui` box (and its
-  css); upstream's `browser.js` is not edited. `js-browser: /.cpr/w/grantbtn.js` still works on its
-  own, but `--js-browser` takes one url, so the fork's other file-browser scripts need the
-  loader. Checked by hand only (no JS test harness); see ticket 11
+* in the file browser, the drive-ux **Share dialog's Add people** part (`web/forkpeople.js`,
+  see [its section](#upstream-edit-share-dialog-add-people-forkpeoplejs-grantsj)) creates,
+  lists and revokes the grants of a folder; it replaced the 🤝 people button (`web/grantbtn.js`,
+  ticket 11, retired in drive-ux ticket 09)
+* `GET /?grants&j`: the grants page's rows as json (same rows, same checks), see that section
 * an owner creates a grant with `POST /?grant`, JSON body
   `{"vp": "/home/alice/proj/", "rcpt": "bob", "name": "proj", "perms": ["read"], "exp": 60}`;
   a reload follows. `exp` is an optional expiry in minutes, like share links; missing, empty or

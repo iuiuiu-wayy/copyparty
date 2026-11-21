@@ -143,7 +143,6 @@
         add(n, 'Download', 'download', function () { LS.act('download'); });
         add(n && window.have_zip && !srch, 'Download as zip', null, function () { ebi('selzip').click(); });
         add(n && !hid('fshr'), 'Share', 'share', function () { LS.act('share'); });
-        add(n && !hid('fgrant'), 'Share with people', 'people', function () { ebi('fgrant').click(); });
         add(f, 'Copy link', 'link', function () {
             cliptxt(f.url, function () { toast.ok(2, L.clipped); });
         });

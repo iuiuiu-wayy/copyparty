@@ -32,7 +32,7 @@ def _sfx_ls():
 class TestForkSfx(unittest.TestCase):
     def test_web_files_are_in_sfx_ls(self):
         # RES is what /.cpr/w/ serves; a fork web file has to be in it to be
-        # served at all, so this covers fork-browser.js, grantbtn.js and friends
+        # served at all, so this covers fork-browser.js, forkshare.js and friends
         ap, ls = _sfx_ls()
         missing = sorted(x for x in RES if "copyparty/" + x not in ls)
         self.assertEqual(missing, [], "add these to %s" % (ap,))

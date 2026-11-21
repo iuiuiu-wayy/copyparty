@@ -15,7 +15,7 @@ from .__init__ import RES, unicode
 from .fork_harden import harden_nodes, has_dot_part, http_refused, is_grant
 from .fork_util import grants_top
 from .bos import bos
-from .util import Daemon, Pebkac, absreal, quotep, ub64enc, undot, vjoin
+from .util import Daemon, Pebkac, absreal, json_hesc, quotep, ub64enc, undot, vjoin
 
 try:
     import sqlite3
@@ -29,17 +29,16 @@ if True:  # pylint: disable=using-constant-test
         from .authsrv import VFS, AuthSrv
         from .svchub import SvcHub
 
-# the fork's web files: the grants page, the grant button, the file-browser
+# the fork's web files: the grants page, the file-browser
 # script loader (fork-browser.js), the file list's row checkboxes (rowsel.js),
 # drag to move (dragmove.js), the control panel tidy-up (ctlpanel.js) and the
 # drive-ux look (forkui.js, forkshell.js, forkacct.js, forknew.js, forklist.js,
-# forkrowmenu.js, forkviews.js, forksearch.js, forkshare.js, forkmove.js,
+# forkrowmenu.js, forkviews.js, forksearch.js, forkshare.js, forkpeople.js, forkmove.js,
 # forkrename.js); registered here so upstream's list in __init__ stays as it is
 RES.update(
     (
         "web/grants.html",
         "web/grants.js",
-        "web/grantbtn.js",
         "web/fork-browser.js",
         "web/rowsel.js",
         "web/dragmove.js",
@@ -53,6 +52,7 @@ RES.update(
         "web/forkviews.js",
         "web/forksearch.js",
         "web/forkshare.js",
+        "web/forkpeople.js",
         "web/forkmove.js",
         "web/forkrename.js",
     )
@@ -374,6 +374,7 @@ def mount_grants(asrv: "AuthSrv", vfs: "VFS", acct: dict[str, str]) -> None:
             vn.js_ls = vfs.js_ls
             vn.js_htm = vfs.js_htm
             vn.md_htm = vfs.md_htm
+        _no_links_cfg(vn)
 
     vfs.nodes[top] = pub
     if vfs.lnodes is not None:
@@ -548,6 +549,21 @@ def _route(vfs: "VFS", top: str, trees: dict[str, "VFS"]) -> None:
     vfs.get = routed("get")
     vfs._get = routed("_get")  # type: ignore
     vfs.can_access = routed("can_access")  # type: ignore
+
+
+def _no_links_cfg(vn: "VFS") -> None:
+    """the listing config (js_ls, and the page's js_htm) of a grant or a
+    grants folder says shr_who "no", as its flags do, so the file browser
+    offers no share link there; copies, since they are the source volume's"""
+    if not vn.js_ls:
+        return
+    vn.js_ls = dict(vn.js_ls, shr_who="no")
+    try:
+        jo = json.loads(vn.js_htm)
+        jo["shr_who"] = "no"
+        vn.js_htm = json_hesc(json.dumps(jo))
+    except:
+        pass
 
 
 def _add_rcpt(axs: Any, rcpt: str, pr: str) -> None:
@@ -887,15 +903,11 @@ def _is_admin(cli: Any) -> bool:
 _PR_TEXT = {"r": "read", "rw": "read + upload"}
 
 
-def tx_grants(cli: Any) -> bool:
-    """GET ?grants: the caller's grants (every grant for --shr-adm);
-    GET ?grants=rcpts: who a grant can go to, as json"""
-    uname = _page_user(cli)
-    if cli.uparam.get("grants") == "rcpts":
-        return _tx_rcpts(cli)
-
+def _grant_rows(cli: Any, uname: str, now: float) -> list[dict[str, Any]]:
+    """the rows of the grants page: the caller's grants (every grant for
+    --shr-adm), with their state; pr is "r" or "rw" """
     asrv = cli.asrv
-    now = time.time()
+    top = grants_top(asrv.args)
     pseudo = share_pw_accounts(asrv.args)
     rows = []
     for row in _store(asrv.args).rows():
@@ -904,20 +916,40 @@ def tx_grants(cli: Any) -> bool:
             continue
         uns = reached_accounts(asrv, pseudo, rcpt)
         state = grant_state(asrv.vfs, row, uns, now)[0]
-        href = "/%s/" % (quotep(vp),) if vp else "/"
         rows.append(
             {
                 "gid": gid,
                 "owner": un,
                 "rcpt": rcpt,
                 "src": "/%s/" % (vp,) if vp else "/",
-                "href": href,
                 "name": name,
-                "pr": _PR_TEXT.get(pr, pr),
+                "at": "/%s/%s/%s/" % (top, un, name),
+                "pr": pr,
                 "t1": t1,
                 "state": state,
             }
         )
+    return rows
+
+
+def tx_grants(cli: Any) -> bool:
+    """GET ?grants: the caller's grants (every grant for --shr-adm);
+    GET ?grants&j: the same rows as json, for the drive-ux Share dialog;
+    GET ?grants=rcpts: who a grant can go to, as json"""
+    uname = _page_user(cli)
+    if cli.uparam.get("grants") == "rcpts":
+        return _tx_rcpts(cli)
+
+    now = time.time()
+    rows = _grant_rows(cli, uname, now)
+    if "j" in cli.uparam:
+        jt = {"now": int(now), "top": grants_top(cli.args), "rows": rows}
+        cli.reply(json.dumps(jt).encode("utf-8"), mime="application/json")
+        return True
+
+    for r in rows:
+        r["href"] = quotep(r["src"])
+        r["pr"] = _PR_TEXT.get(r["pr"], r["pr"])
 
     html = cli.j2s(
         _template(cli), this=cli, rows=rows, now=int(now), adm=_is_admin(cli), top=grants_top(cli.args)

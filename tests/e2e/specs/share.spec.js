@@ -208,7 +208,8 @@ test('the dialog fits the screen and gives focus back', async ({ page, loginAs, 
         const bb = await dialog(page).getByRole('button', { name: n }).first().boundingBox();
         expect(bb.height).toBeGreaterThanOrEqual(44);
     }
-    await expect(general(page)).toBeFocused();
+    // Add people comes first in the dialog (people.spec.js); a file goes to General access
+    await expect(dialog(page).getByLabel('Add a person or group')).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(dialog(page)).toBeHidden();
     await expect(b).toBeFocused();
@@ -228,15 +229,12 @@ test('a guest on a share link sees no Share and asks for no link list', async ({
     expect(asked).toEqual([]);
 });
 
-test('a link from a folder that takes none is refused, with the server\'s reason', async ({ page, loginAs, press, selbar }) => {
-    // bob can read what alice granted him, but a grant takes no share links (the server's
-    // shr_who for it is "no"); upstream still offers Share there, so the refusal is shown
+test('a folder that takes no links offers no Share', async ({ page, loginAs, press, selbar }) => {
+    // bob can read what alice granted him, but a grant takes no share links (its listing
+    // says shr_who "no", fork_grants.py), so upstream and the dialog offer no Share there
     await loginAs('bob');
     await page.goto('/shared/alice/proj/');
-    await pick(page, press, 'plan.txt');
-    await press(selbar.getByRole('button', { name: 'Share' }));
-    await general(page).selectOption('any');
-    await press(dialog(page).getByRole('button', { name: 'Create link' }));
-    await expect(dialog(page).getByRole('alert')).toHaveText('you dont have perms to create shares from this volume');
-    await expect(links(page)).toHaveCount(0);
+    await press(row(page, 'plan.txt').getByRole('checkbox'));
+    await expect(selbar).toBeVisible();
+    await expect(selbar.getByRole('button', { name: 'Share' })).toHaveCount(0);
 });

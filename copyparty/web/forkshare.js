@@ -192,10 +192,15 @@
             sections[a].render(it, sections[a].box);
         }
         dlg.open(opener);
-        // the first thing to act on: General access, or a section's own first field
-        var f = secs.querySelector('select,input,button');
-        if (f)
-            f.focus();
+        // the first thing to act on: a section's own first field that can take focus
+        // (a disabled one, or one in a hidden section, can't), else General access
+        var fs = secs.querySelectorAll('select,input,button');
+        for (var b = 0; b < fs.length; b++) {
+            if (!fs[b].disabled && fs[b].getClientRects().length) {
+                fs[b].focus();
+                break;
+            }
+        }
     }
 
     // ---- General access: share links
