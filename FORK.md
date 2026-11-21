@@ -235,6 +235,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [row menu (forkrowmenu.js)](#upstream-edit-row-menu-forkrowmenujs) | `scripts/sfx.ls` only |
 | [drive-ux views that aren't folders (forkviews.js)](#upstream-edit-drive-ux-views-that-arent-folders-forkviewsjs) | `scripts/sfx.ls` only |
 | [drive-ux search (forksearch.js)](#upstream-edit-drive-ux-search-forksearchjs) | `scripts/sfx.ls` only |
+| [drive-ux rename dialog (forkrename.js)](#upstream-edit-drive-ux-rename-dialog-forkrenamejs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -813,6 +814,32 @@ every place this fork changes an upstream file, one section each below. On a mer
   `or`), `path` as volume + folder, and that it searches every readable volume. Opening a hit
   is upstream's: a text or other non-media hit opens its folder (the search ends), an image
   the lightbox. After an upstream merge, run `./scripts/fork-e2e.sh specs/search.spec.js`
+
+### upstream edit: drive-ux rename dialog (forkrename.js)
+
+- **what it is:** the rename dialog of the Drive-style file browser (drive-ux ticket 11; on the
+  `drive-ux` branch until ticket 17). Rename on one item (the selection bar's More actions, the
+  row menu, F2, and upstream's own callers of `fileman.rename`) opens a small `forkui.dialog`
+  "Rename" with a "New name" field, the name selected up to the extension for a file (the
+  whole name for a folder); Enter or Save sends upstream's own request (`POST <item>?move=<same
+  folder>/<new name>`, 201). A refusal shows the server's reason in the dialog (`role=alert`,
+  the field's description) and keeps it open; an empty name, `/`, `.` and `..` are refused
+  before asking. After the reload the renamed row has focus, and is selected again if it was.
+  Several items (or no move rights) go to upstream's batch rename panel (`#rui`) unchanged.
+  F2 with nothing selected renames the focused row. For ticket 12: `forkui.rename(item,
+  opener, done)`, `item` = `{ vp, fn, isd }`
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forkrename.js`; `fork_grants.py` adds
+  it to upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` (last); it replaces
+  `forkui.actions.rename` (forklist.js) and reuses forknew.js's name-dialog styles
+- **fork files:** `copyparty/web/forkrename.js`, `tests/test_fork_drive_rename.py`,
+  `tests/e2e/specs/rename.spec.js`
+- **on conflict:** nothing to merge, but the dialog leans on upstream names, each listed in
+  `tests/test_fork_drive_rename.py`: `fileman.rename` (wrapped; F2 and the right-click menu
+  call it through `fileman`, `bren.onclick` is re-set), `#fren`'s `hide` class as the
+  permission, the batch panel's `#rui` / `#rn_new_<n>` / `#rn_apply`, the `?move=` request and
+  its 201, `msel.getsel` / `getall` items and `msel.render` (wrapped, to focus the renamed row),
+  `treectl.goto`, `fileman.tx`, `vsplit`, `uricom_enc`, `unpre`. After an upstream merge, run
+  `./scripts/fork-e2e.sh specs/rename.spec.js`
 
 ## grants: fork-only folder sharing between accounts
 

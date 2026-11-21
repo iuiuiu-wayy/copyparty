@@ -33,7 +33,8 @@ if True:  # pylint: disable=using-constant-test
 # (linkbtn.js), the file-browser script loader (fork-browser.js), the file list's row
 # checkboxes (rowsel.js), drag to move (dragmove.js), the control panel tidy-up
 # (ctlpanel.js) and the drive-ux look (forkui.js, forkshell.js, forkacct.js,
-# forknew.js, forklist.js, forkrowmenu.js, forkviews.js, forksearch.js); registered here so
+# forknew.js, forklist.js, forkrowmenu.js, forkviews.js, forksearch.js,
+# forkrename.js); registered here so
 # upstream's list in __init__ stays as it is
 RES.update(
     (
@@ -53,6 +54,7 @@ RES.update(
         "web/forkrowmenu.js",
         "web/forkviews.js",
         "web/forksearch.js",
+        "web/forkrename.js",
     )
 )
 

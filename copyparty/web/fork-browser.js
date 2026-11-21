@@ -20,6 +20,7 @@
         'forknew.js',
         'forkviews.js',
         'forksearch.js',
+        'forkrename.js',
     ];
 
     var me = document.currentScript;

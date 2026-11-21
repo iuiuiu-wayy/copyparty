@@ -187,3 +187,20 @@ handler, so upstream's search posts it and renders the hits. Traps found while b
   results hid the breadcrumb through `treectl.hide()`).
 - **The server rate-limits searches** (429 when the last one took over 0.7 s and came less
   than 0.7 s ago); upstream writes the refusal in `#srch_q` (class `err`).
+
+## Drive-ux scripts: rename (forkrename.js)
+
+`web/forkrename.js` wraps `fileman.rename`, so every caller (the selection bar, the row menu,
+F2, upstream's button and right-click menu) gets the small dialog for one item and upstream's
+batch panel for several. Another script renames something that isn't a selected row (the
+current folder, ticket 12) with `forkui.rename({ vp, fn, isd }, opener, done)`; `done(newvp)`
+replaces the list reload. Traps found while building it:
+
+- **F2 reaches upstream's hotkey only from outside an input**, and upstream calls
+  `fileman.rename()` without an event; `ev(undefined)` then cancels the keydown itself. Call
+  the wrap with `{}` from a menu pick, never `null`.
+- **A rename reloads the list** (`treectl.goto`), so the opener (the row's ⋮, or the row) is
+  gone when the dialog closes; focus the new row from a `msel.render` wrap instead.
+- **Don't add an Enter handler to the field**: the form's implicit submission skips an IME's
+  confirming Enter, a keydown handler doesn't.
+
