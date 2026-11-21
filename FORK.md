@@ -41,6 +41,7 @@ the Nextcloud features we want to keep:
 | reach the control panel from the file browser | ✅ on the `drive-ux` branch: `web/forkacct.js`, fork-only; the account menu on the top bar's avatar (the account's initial): Change password (the control panel's form, focused), My share links, My grants, Control panel, Log out, at the `--rp-loc` prefix. Hidden for guests and with `ui_noacci`; Control panel left out with `ui_nocpla` (both unless `?fullui`), as upstream hides its own account box and link. [Its upstream edit](#upstream-edit-account-menu-forkacctjs) |
 | search like Drive | ✅ on the `drive-ux` branch: `web/forksearch.js`, fork-only; the top bar's search box searches names under the current folder (upstream's search, results in the list), with Type and Modified chips, Advanced (upstream's full form), `/` to focus, Esc or ✕ to get the folder back. Only where upstream shows its search (indexed volumes, not on share links). [Its upstream edit](#upstream-edit-drive-ux-search-forksearchjs) |
 | move without dragging, like Drive | ✅ on the `drive-ux` branch: `web/forkmove.js`, fork-only; **Move to…** in the selection bar and the row menu opens a folder picker at the current folder, with My files and Shared with me as roots, a breadcrumb and New folder; only a folder you can write to can be picked, never a folder being moved or anything in it. Paste's `?move` request per item; refusals are listed in the dialog by item with the server's reason. Also restyles drag to move's drop targets. [Its upstream edit](#upstream-edit-drive-ux-move-to-forkmovejs) |
+| a grid view like Drive | ✅ on the `drive-ux` branch: `web/forkgrid.js`, fork-only; a List / Grid toggle beside the breadcrumb switches to upstream's grid drawn as Drive's: a Folders section of compact tiles, then file cards with upstream's lazy thumbnails and a ⋮ each. Selecting, the selection bar, the row menu and opening work as in the list; the choice is upstream's `griden` setting, so it stays with the browser. [Its upstream edit](#upstream-edit-drive-ux-grid-view-forkgridjs) |
 | a control panel that makes sense to users | ✅ `js-other: /.cpr/w/ctlpanel.js` + `nb`, fork-only; "other stuff:" becomes "more:" with "your share links", "your grants", recently added files, logout everywhere (in that order); "reset client settings", the `π` link and "powered by" are hidden; the share links page gets an intro line ("Links anyone can open without an account. Revoke one to stop it working."). With `chpw`, a "change password:" form of its own (new password, repeat, button) sits under "welcome back"; upstream's small "change password" link next to the login button is hidden |
 
 
@@ -237,6 +238,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [drive-ux views that aren't folders (forkviews.js)](#upstream-edit-drive-ux-views-that-arent-folders-forkviewsjs) | `scripts/sfx.ls` only |
 | [drive-ux search (forksearch.js)](#upstream-edit-drive-ux-search-forksearchjs) | `scripts/sfx.ls` only |
 | [drive-ux Move to… (forkmove.js)](#upstream-edit-drive-ux-move-to-forkmovejs) | `scripts/sfx.ls` only |
+| [drive-ux grid view (forkgrid.js)](#upstream-edit-drive-ux-grid-view-forkgridjs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -846,6 +848,39 @@ every place this fork changes an upstream file, one section each below. On a mer
   paste's `?move=` + `&akey=`, `fileman.tx`, `treectl.goto`, `act=mkdir` and its `X-New-Dir`
   header, and `randstr`, `uricom_enc` / `uricom_dec`, `get_evpath`, `has`, `unpre`. After an
   upstream merge, run `./scripts/fork-e2e.sh specs/move.spec.js specs/dragmove.spec.js`
+
+### upstream edit: drive-ux grid view (forkgrid.js)
+
+- **what it is:** the grid view of the Drive-style file browser (drive-ux ticket 15; on the
+  `drive-ux` branch until ticket 17). A **Layout** group (List layout / Grid layout,
+  `aria-pressed`) floats right of the breadcrumb and clicks upstream's `#griden`, so the choice
+  is upstream's `griden` setting in this browser (its `g` hotkey and `?grid` still work).
+  Upstream's tiles (`#ggrid`) are still built, hidden, and stay the lightbox's gallery; after
+  each `thegrid.loadsel` (the end of every grid load, and every selection or player change)
+  `forkgrid.js` builds its own `#fk-grid` from them when they are new, else re-syncs: a
+  **Folders** list of compact tiles, then a **Files** list of cards (`li` with a checkbox, the
+  name as the one link stretched over the card, a ⋮ of class `fk-own`, and upstream's thumbnail
+  url in a lazy `img`; cards past the first screen get `content-visibility:auto`). Each card
+  carries its row's link id in `data-fk-ref` and mirrors the row's `sel`, `play` and `fcut`.
+  `forklist.js` maps a card to its row (its click, double-click, long-press listeners also sit
+  on `#gfiles`) and `forkrowmenu.js` takes right-clicks on it (focus goes back to the card's
+  link); the ⋮ calls `forkui.rowmenu.open`. Keys on a card: Enter opens, Space selects, arrows
+  move, Shift+F10 / the context-menu key open the row menu. Upstream's grid bar keeps only its
+  sort links (zoom, chop, crop, 3x and multiselect are hidden; multiselect is switched off, as
+  a click already selects). Upstream's 250-row paging (and its "show all" ask on Firefox for
+  Android) is unchanged
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forkgrid.js`; `fork_grants.py` adds
+  it to upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` (after `forklist.js` and
+  `forkrowmenu.js`)
+- **fork files:** `copyparty/web/forkgrid.js`, `tests/test_fork_drive_grid.py`,
+  `tests/e2e/specs/grid.spec.js`; small edits in `forklist.js` and `forkrowmenu.js`
+  (`data-fk-ref`)
+- **on conflict:** nothing to merge, but it leans on upstream names, each listed in
+  `tests/test_fork_drive_grid.py`: `thegrid` (`en` / `griden`, `sel` / `gridsel`, `setvis`,
+  `loadsel`, `dirty`, `onhide` read by `bagit`, `imshow`), the tile markup
+  (`#ggrid > a[ref] > img`), `#ghead`'s last span (sort), `msel.selui` calling
+  `thegrid.loadsel` and `msel.origin_tr`. After an upstream merge, run
+  `./scripts/fork-e2e.sh specs/grid.spec.js specs/list.spec.js`
 
 ## grants: fork-only folder sharing between accounts
 

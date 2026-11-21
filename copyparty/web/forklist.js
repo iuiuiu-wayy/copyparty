@@ -51,8 +51,11 @@
         return rows(true).length;
     }
 
+    // a row, or the row of a grid card (forkgrid.js: data-fk-ref is the id of its row's link)
     function rowof(t) {
-        var tr = t && t.closest && t.closest('#files tbody tr');
+        var c = t && t.closest && t.closest('[data-fk-ref]'),
+            r = c && ebi(c.getAttribute('data-fk-ref'));
+        var tr = c ? r && r.closest('#files tbody tr') : t && t.closest && t.closest('#files tbody tr');
         return tr && !tr.classList.contains('srch_hdr') && tr.cells[1] &&
             tr.cells[1].querySelector('a[id]') ? tr : null;
     }
@@ -147,7 +150,14 @@
         ptype = e.pointerType || 'mouse';
     }, true);
 
-    files.addEventListener('click', function (e) {
+    // the list's rows, and the grid's cards (forkgrid.js, inside upstream's #gfiles)
+    function on(type, fn) {
+        files.addEventListener(type, fn, true);
+        if (ebi('gfiles'))
+            ebi('gfiles').addEventListener(type, fn, true);
+    }
+
+    on('click', function (e) {
         if (opening || e.button)
             return;
         var tr = rowof(e.target);
@@ -155,7 +165,7 @@
         // row menu's ⋮) and the parent-folder links of a search hit stay theirs
         if (!tr || e.target.closest('.rsel,.fk-own'))
             return;
-        var a = e.target.closest('a');
+        var a = e.target.closest('#files a');
         if (a && insrch() && !a.id)
             return;
 
@@ -180,16 +190,16 @@
             msel.origin_tr(tr);
         }
         focusrow(tr);
-    }, true);
+    });
 
-    files.addEventListener('dblclick', function (e) {
+    on('dblclick', function (e) {
         var tr = rowof(e.target);
         if (!tr || ptype == 'touch' || e.target.closest('.rsel,.fk-own') || e.shiftKey || ctrl(e))
             return;
         e.preventDefault();
         e.stopPropagation();
         open(tr);
-    }, true);
+    });
 
     // a long-press on a touch screen selects the row; the browser's link callout and text
     // selection are kept away (CSS, and the contextmenu a long-press brings)
@@ -201,14 +211,14 @@
         hold = null;
     }
 
-    files.addEventListener('pointerdown', function (e) {
+    on('pointerdown', function (e) {
         unhold();
         var tr = rowof(e.target);
         if (e.pointerType != 'touch' || !tr || e.target.closest('.rsel,.fk-own'))
             return;
         hold = { x: e.clientX, y: e.clientY, tr: tr, done: false, t0: Date.now() };
         hold.t = setTimeout(held, 500);
-    }, true);
+    });
 
     function held() {
         if (!hold || hold.done)
@@ -222,10 +232,10 @@
             try { navigator.vibrate(20); } catch (ex) { }
     }
 
-    files.addEventListener('pointermove', function (e) {
+    on('pointermove', function (e) {
         if (hold && !hold.done && Math.abs(e.clientX - hold.x) + Math.abs(e.clientY - hold.y) > 10)
             unhold();
-    }, true);
+    });
 
     // pointerup, or pointercancel when the browser took the touch for a scroll or its own
     // long-press; a click may still follow
@@ -239,10 +249,10 @@
         }
         unhold();
     }
-    files.addEventListener('pointerup', endhold, true);
-    files.addEventListener('pointercancel', endhold, true);
+    on('pointerup', endhold);
+    on('pointercancel', endhold);
 
-    files.addEventListener('contextmenu', function (e) {
+    on('contextmenu', function (e) {
         var tr = rowof(e.target);
         if (ptype == 'touch' && tr && !e.target.closest('.fk-own')) {
             // Android's long-press: it may come before our timer, and cancel the pointer
@@ -252,7 +262,7 @@
             e.preventDefault();
             e.stopPropagation();
         }
-    }, true);
+    });
 
     // ---- the delete confirm says what it does: there is no trash
     var odel = fileman.delete;

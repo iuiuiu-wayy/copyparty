@@ -202,3 +202,23 @@ handler, so upstream's search posts it and renders the hits. Traps found while b
   checking "inside a folder being moved".
 - **In e2e tests, wait half a second after a long-press before the next tap**: `forklist.js`
   swallows clicks for 400 ms after a long-press, so a tap right after it selects nothing.
+
+## Drive-ux scripts: the grid view (forkgrid.js)
+
+`web/forkgrid.js` draws the grid as its own cards (`#fk-grid` inside upstream's `#gfiles`), built
+from upstream's hidden tiles after each `thegrid.loadsel`. A card carries its row's link id in
+`data-fk-ref`; `forklist.js` and `forkrowmenu.js` map it to the row, so a script that acts on
+rows works on cards too. A control of yours on a card gets class `fk-own`, as in a row. Traps
+found while building it:
+
+- **`thegrid.loadsel` overwrites every tile's `className`** with its row's, so anything kept
+  on upstream's tiles is lost; that is why the cards are elements of our own.
+- **A button inside a link is invalid and reads badly in a screen reader**, and upstream's
+  tiles are links; the card is an `li` whose one link (the name) is stretched over it, with the
+  checkbox and the ⋮ beside it.
+- **`.fk-card` is taken** by the upload card (`forknew.js`); grid classes start `fk-g`.
+- **Upstream lists 250 rows, then the rest once you scroll to the end** (its `#lazy`); on
+  Firefox for Android it asks first ("show all", the `bd_ask` setting). A grid test with
+  hundreds of files scrolls to the end, and taps `#bd_all` when it shows.
+- **The lightbox gives focus back to upstream's hidden tile** (`thegrid.onhide`); the wrap
+  moves it to the card.
