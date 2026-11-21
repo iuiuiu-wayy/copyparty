@@ -24,6 +24,13 @@
 
     // 24x24 outline paths, drawn for this fork (no third-party icon set)
     var ICONS = {
+        // viewers and the audio player (forkview.js)
+        'left': 'M15 5l-7 7l7 7',
+        'right': 'M9 5l7 7l-7 7',
+        'play': 'M8 5.5v13l10.5-6.5z',
+        'pause': 'M8 5v14M16 5v14',
+        'prev': 'M6 5v14M18 5.5v13L8 12z',
+        'next': 'M18 5v14M6 5.5v13L16 12z',
         // search chips (forksearch.js)
         'check': 'M5 12.5l4.5 4.5L19 7',
         'caret': 'M7 10l5 5l5-5',

@@ -240,3 +240,28 @@ replaces the list reload. Traps found while building it:
 - **Don't add an Enter handler to the field**: the form's implicit submission skips an IME's
   confirming Enter, a keydown handler doesn't.
 
+## Drive-ux scripts: viewers and the audio player (forkview.js)
+
+`web/forkview.js` puts a top bar on upstream's lightbox and text viewer and restyles the audio
+player as a bottom bar; it only moves, hides and clicks upstream's controls. Traps found while
+building it:
+
+- **The lightbox overlay is rebuilt on every opening**: `thegrid.bagit` calls
+  `baguetteBox.destroy()` (which removes `#bbox-overlay`) before `run`. Add to it after each
+  `run`, which also hands you the options (`onChange` tells which item shows; in list view the
+  item's link has no `ref`, so upstream's `#g…` hash says `gnull`).
+- **The lightbox traps focus and takes every key at `document`**: a `<dialog>` opened over it
+  (Share) loses focus to the lightbox's Close and its arrows / letters drive the lightbox.
+  `forkview.js` stops the focus event at `window` (capture) and the keydown at `<html>`
+  (bubble) when they come from a `.fk-dlg` or `.fk-menu` outside the overlay.
+- **Its touch handlers are on the overlay**: a drag on anything inside it (our bar, a bottom
+  sheet inserted after its trigger) swipes images or closes the lightbox; stop the touch
+  events in your own element.
+- **Upstream opens the audio bar only when it creates the first `Audio`** (`play()`); once
+  closed, nothing opens it again. `forkview.js` wraps the global `play` (called by bare name,
+  so reassigning `window.play` catches it) to open it.
+- **Playwright counts an element pushed off screen as visible**: upstream hides the closed
+  player with `bottom: -6em`; the new look adds `visibility: hidden` after the slide.
+- **A source checkout has no `deps/`** (`prism.js`, `marked.js`): the harness shows markdown
+  unrendered (nothing at all, after a "failed to load" toast) and text without highlighting.
+

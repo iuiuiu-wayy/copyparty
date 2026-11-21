@@ -29,6 +29,32 @@ for (let i = 0; i < 16; i++) {
 // a share link alice made of her /home/alice/trip/ folder
 const SHARE_KEY = 'e2etripshare01';
 
+// a seeded media file (tests/e2e/media/)
+function media(name) {
+    return fs.readFileSync(path.join(__dirname, 'media', name));
+}
+
+// 30 seconds of a quiet sine tone, 8 kHz 8-bit mono wav (long enough that upstream's player
+// does not finish it and go on to the next folder mid-test)
+function wav(hz) {
+    const rate = 8000, n = rate * 30, b = Buffer.alloc(44 + n);
+    b.write('RIFF', 0);
+    b.writeUInt32LE(36 + n, 4);
+    b.write('WAVEfmt ', 8);
+    b.writeUInt32LE(16, 16);
+    b.writeUInt16LE(1, 20);
+    b.writeUInt16LE(1, 22);
+    b.writeUInt32LE(rate, 24);
+    b.writeUInt32LE(rate, 28);
+    b.writeUInt16LE(1, 32);
+    b.writeUInt16LE(8, 34);
+    b.write('data', 36);
+    b.writeUInt32LE(n, 40);
+    for (let i = 0; i < n; i++)
+        b[44 + i] = 128 + Math.round(20 * Math.sin((2 * Math.PI * hz * i) / rate));
+    return b;
+}
+
 // seeded files, relative to the temp dir's srv/
 const SEED = {
     'home/alice/notes.txt': 'shopping: milk, eggs\n',
@@ -51,6 +77,14 @@ const SEED = {
     'home/carol/search2/beach.jpg': 'jpg\n',
     'home/carol/other/beach.jpg': 'jpg\n',
     'attic/beach.txt': 'not indexed\n',
+    // the viewer and player scenarios (specs/viewers.spec.js); only read
+    'home/carol/media/blue.png': media('blue.png'),
+    'home/carol/media/orange.png': media('orange.png'),
+    'home/carol/media/clip.webm': media('clip.webm'),
+    'home/carol/media/tone-a.wav': wav(440),
+    'home/carol/media/tone-b.wav': wav(660),
+    'home/carol/media/notes.txt': 'first line\nsecond line\n',
+    'home/carol/media/guide.md': '# Guide\n\nSome *markdown* here.\n',
 };
 
 // seeded files with an older modified time (unix seconds), for the Modified search chip

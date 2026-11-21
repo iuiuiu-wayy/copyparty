@@ -239,6 +239,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [share link revoked during a reload](#upstream-edit-share-link-revoked-during-a-reload) | `authsrv.py` |
 | [drive-ux Move to… (forkmove.js)](#upstream-edit-drive-ux-move-to-forkmovejs) | `scripts/sfx.ls` only |
 | [drive-ux rename dialog (forkrename.js)](#upstream-edit-drive-ux-rename-dialog-forkrenamejs) | `scripts/sfx.ls` only |
+| [drive-ux viewers and audio player (forkview.js)](#upstream-edit-drive-ux-viewers-and-audio-player-forkviewjs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -913,6 +914,41 @@ every place this fork changes an upstream file, one section each below. On a mer
   its 201, `msel.getsel` / `getall` items and `msel.render` (wrapped, to focus the renamed row),
   `treectl.goto`, `fileman.tx`, `vsplit`, `uricom_enc`, `unpre`. After an upstream merge, run
   `./scripts/fork-e2e.sh specs/rename.spec.js`
+
+### upstream edit: drive-ux viewers and audio player (forkview.js)
+
+- **what it is:** upstream's viewers and audio player in the Drive-style file browser (drive-ux
+  ticket 16; on the `drive-ux` branch until ticket 17). The lightbox (images, video) gets a
+  dark top bar: Close (upstream's own `#bbox-close`, moved into it), the file's name (which
+  also names the lightbox dialog), Previous file / Next file at the sides, Download, Share
+  (`forkui.share.open`, the Share dialog) and More options holding upstream's other lightbox
+  buttons (rotate, zoom, full screen, select, video mode, go to page, animation, reading
+  direction, keyboard shortcuts); upstream's button row, side arrows and caption are hidden.
+  Arrows, Esc, swipe and the other hotkeys stay upstream's; closing puts focus on the row of
+  the file last shown. The text viewer (text, code, markdown) gets the same bar (Close, name,
+  ‹ ›, Download, Share, More options: Edit, Select, Beautify JSON, Follow changes, Word wrap)
+  over upstream's hidden button row (its follow settings still show while following). The
+  audio player is a light bar along the whole bottom: previous / play-pause / next (clicking
+  upstream's `#pctl`), the track's name, upstream's seek and volume canvases laid out anew,
+  More player options (Download track, upstream's copy / playlist buttons when enabled,
+  Player settings) and Close player (pauses and hides; the next track brings it back).
+  Upstream's `#wtoggle` tab is hidden (its file buttons were hidden already by forklist.js; its
+  grid toggle `#wtgrid` goes with it, hotkey G stays). Player settings stay in More tools
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forkview.js`; `fork_grants.py` adds
+  it to upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` (last); six icons in
+  `forkui.js`
+- **fork files:** `copyparty/web/forkview.js`, `tests/test_fork_drive_viewers.py`,
+  `tests/e2e/specs/viewers.spec.js`, `tests/e2e/media/` (seeded media for the harness)
+- **on conflict:** nothing to merge, but it leans on upstream names, each listed in
+  `tests/test_fork_drive_viewers.py`: `baguetteBox.run` (wrapped, for `onChange` /
+  `afterHide`), the overlay's button ids and its document-level focus trap and keydown
+  listener, `thegrid.bagit`'s `onChange` and tiles' `ref`, `showfile` (`files`, `url`,
+  `taildoc`, `wrap`, `updtree` wrapped), `#bdoc` / `#hdoc`'s button ids and `#docname`,
+  `widget.open` / `close` / `paused` (wrapped), the global `play` (wrapped: upstream opens the
+  bar only for the first track), `playpause`, `dl_song`, `mp.au.osrc`, `#widgeti`, `#pctl`'s
+  buttons, the canvases and `pbar` / `vbar.onresize`, `#wtoggle`'s `np` / `m3u` classes,
+  `#fshr`'s `hide` class. After an upstream merge, run
+  `./scripts/fork-e2e.sh specs/viewers.spec.js`
 
 ## grants: fork-only folder sharing between accounts
 

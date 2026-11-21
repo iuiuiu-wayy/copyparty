@@ -22,6 +22,7 @@
         'forkshare.js',
         'forkmove.js',
         'forkrename.js',
+        'forkview.js',
     ];
 
     var me = document.currentScript;
