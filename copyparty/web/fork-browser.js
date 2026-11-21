@@ -18,6 +18,7 @@
         'forklist.js',
         'forkrowmenu.js',
         'forknew.js',
+        'forkviews.js',
     ];
 
     var me = document.currentScript;

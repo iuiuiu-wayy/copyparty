@@ -151,3 +151,20 @@ where the folder can't be written to. Traps found while building + New and the u
 - **In e2e tests, give each upload its own bytes**: the server links a copy it already has
   instead of receiving the file again (dedup), so parallel projects uploading the same bytes
   see no chunk requests.
+
+## Drive-ux scripts: views that aren't folders
+
+`web/forkviews.js` fills the nav's Shared with me and Recent uploads through
+`forkui.shell.views[id](section)` (`forkshell.js` makes the section, its `h2` and the focus) and
+exposes their data as `forkui.views.shared(done)` / `.recent(done)` (see its top comment), for a
+folder picker or anything else that wants the same roots. Traps found while building it:
+
+- **The root's `?ls` has no `cfg`** when `/` is no volume, and lists `home/` with the caller's
+  perms on their own home folder, so perms can't tell a folder with no path on disk from a
+  volume; `forkviews.js` descends only into a root folder that holds the home folder.
+- **Upstream's `*:focus` ring (`ui.css`)** draws on a heading focused by script and on every
+  link; turn it off inside your own markup and draw your own on `:focus-visible`.
+- **`?ru` needs `j` in the query** for JSON, and hides `at` and `un` from non-admins (0 and
+  `(?)`) unless `--ups-when`; nothing in the reply says whether `ups_who` hid a volume.
+- **A harness grant that must be suspended** needs the owner to lose the rights: the harness
+  rewrites its config and calls `?reload=cfg` at setup (see `server.js`).
