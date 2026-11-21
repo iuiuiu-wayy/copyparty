@@ -15,6 +15,7 @@
         'rowsel.js',
         'acclink.js',
         'dragmove.js',
+        'forknew.js',
     ];
 
     var me = document.currentScript;

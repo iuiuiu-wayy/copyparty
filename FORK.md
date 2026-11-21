@@ -229,6 +229,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [sidebar tree of a folder with no path on disk](#upstream-edit-sidebar-tree-of-a-folder-with-no-path-on-disk) | `httpcli.py`, `scripts/sfx.ls` |
 | [end-to-end harness (tests/e2e)](#upstream-edit-end-to-end-harness-testse2e) | none |
 | [drive-ux frame (forkui.js, forkshell.js)](#upstream-edit-drive-ux-frame-forkuijs-forkshelljs) | `scripts/sfx.ls` only |
+| [drive-ux + New and upload card (forknew.js)](#upstream-edit-drive-ux--new-and-upload-card-forknewjs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -614,6 +615,42 @@ every place this fork changes an upstream file, one section each below. On a mer
   grows the layout viewport, putting fixed bars and sheets off screen, so `#wrap` scrolls
   sideways there (upstream's sticky list header is lost on a phone until ticket 03). After an
   upstream merge, run `./scripts/fork-e2e.sh` (`specs/shell.spec.js`, `specs/landing.spec.js`)
+
+### upstream edit: drive-ux + New and upload card (forknew.js)
+
+- **what it is:** drive-ux ticket 05 (on the `drive-ux` branch until ticket 17). **+ New** (the
+  nav's button from forkshell.js, and a floating + at the bottom right below 800 px) opens a menu:
+  New folder, File upload, Folder upload (not on a touch device, as upstream), New text file
+  (needs read too). Hidden where the folder isn't writable, following upstream's `html.write`
+  class from `apply_perms`. File / Folder upload click up2k's own newest hidden input in
+  `#u2form`, so up2k stays the only uploader (resume by content hash, dedup, its settings,
+  `uc.ask_up`'s "upload N files?" confirm, kept). New folder / New text file are small dialogs
+  posting `act=mkdir` / `act=new_md` as upstream's tabs do; the name dialogs show the server's
+  refusal and "already exists" (405 / 500) inline. The **upload card** (bottom right; full width
+  on a phone) reads `up2k.ui.tab` and `up2k.st.files` (a 300 ms poll while anything is busy,
+  started by a wrap of `up2k.ui.addfile`): "Uploading N items", per-file progress, Done, Failed
+  with the server's reason, collapse, close (the next upload brings it back with only the new
+  files), Details = up2k's full panel. Search-mode files (`entry.srch`) are not shown.
+  **Behaviour changed in this look only:** picking or dropping files no longer opens up2k's panel
+  (`gotfile`'s `goto('up2k')` is turned into `up2k.init_deps()` while our capture listener marks
+  a file drop or a change on a `#u2form` input; in search mode the panel still opens); New folder
+  stays in the folder (upstream's tab goes into the new one); New text file stays too (upstream's
+  tab opens the editor). The + and the card sit above upstream's audio bar (`#widget.open`,
+  measured), `#wrap` gets bottom padding so they never cover the last row, and upstream's
+  toasts move up above the card. `forkui.create = {items(opener), folder(opener), files(), dir(),
+  textfile(opener)}` is the API the folder menu (ticket 12) reuses; forkshell.js now exports
+  `forkui.newbtn` and `forkui.opentool` and no longer fills + New itself
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forknew.js`; `fork_grants.py` adds it
+  to upstream's `RES`
+- **fork files:** `copyparty/web/forknew.js` (icons added to `forkui.js`),
+  `tests/test_fork_drive_new.py`, `tests/e2e/specs/upload.spec.js`
+- **on conflict:** nothing to merge, but it leans on upstream names, each listed in
+  `tests/test_fork_drive_new.py`: `up2k` / `up2k_hooks`, `up2k.ui` (U2pvis `addfile`, `tab[n]`
+  `in` / `bd` / `bt` / `nh` / `hp`), `up2k.st.files[n]` (`name`, `purl`, `srch`, `t_hashing`,
+  `t_uploading`), `up2k.uc.fsearch`, `init_deps`, `gotfile`'s `goto('up2k')`, the `#u2form`
+  inputs (`file{0}` / `dir{0}[webkitdirectory]`), `MOBILE`, `html.write`, `perms`, `rw_edit` /
+  `re_rw_edit`, `#widget.open`, `#toast`, and the server's mkdir 405 / new_md 500 answers. After an
+  upstream merge, run `./scripts/fork-e2e.sh specs/upload.spec.js`
 
 ## grants: fork-only folder sharing between accounts
 

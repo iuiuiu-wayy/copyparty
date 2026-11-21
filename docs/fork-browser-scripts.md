@@ -92,3 +92,25 @@ browser-rule fallbacks live in one place. Traps found while building the frame (
 - **A guest page stays inside the share link and `/.cpr/`**: Outside, the proxy passes nothing
   else. Make no other request when `acct == '*'` or on a share link, and let a failed one fail
   quietly. `specs/shell.spec.js` checks a guest page load.
+
+## Drive-ux scripts: uploads (forknew.js)
+
+`forkui.create` (`web/forknew.js`) is how another script offers New folder, File upload,
+Folder upload and New text file: `items(opener)` is a ready list for `forkui.menu`, empty
+where the folder can't be written to. Traps found while building + New and the upload card:
+
+- **up2k may not exist yet.** `up2k` is `null` until its hasher check settles and `false`
+  when init failed; check `window.up2k`, else push a function onto `up2k_hooks`.
+- **Every pick or drop opens up2k's panel**: `gotfile` calls `goto('up2k')`, by bare name,
+  so wrapping `window.goto` catches it. Keep `up2k.init_deps()` (what `goto_up2k` does), or
+  the hasher never loads.
+- **The card must read `up2k.ui.tab`, not `#u2tab`**: only the active card's rows of
+  upstream's table exist in the DOM. `ui.addfile` runs before `st.files.push`, so read the
+  new file a tick later.
+- **Upstream's toasts come up bottom right**, over anything fixed there (and they catch the
+  clicks); `forknew.js` moves `#toast` up above the card.
+- **The file inputs are `tabindex=-1` and inside the hidden panel**; `.click()` on them still
+  opens the picker, but only inside the user's gesture (call it from the menu pick itself).
+- **In e2e tests, give each upload its own bytes**: the server links a copy it already has
+  instead of receiving the file again (dedup), so parallel projects uploading the same bytes
+  see no chunk requests.

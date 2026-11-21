@@ -105,6 +105,9 @@
         }
     }
 
+    // for the other drive-ux scripts: open one of upstream's tabs (forknew.js: Details)
+    ui.opentool = opentool;
+
     // ---- top bar
 
     var menubtn = guest ? null : el('button', {
@@ -226,18 +229,8 @@
         el('div', { role: 'list' }, [ents.mine, ents.shared, ents.recent])
     ]);
 
-    // + New: for now the creating tools upstream shows here (ticket 05 makes it Drive's)
-    ui.menu({
-        trigger: newbtn, label: 'New', title: 'New', items: function () {
-            var ok = {};
-            tools().forEach(function (t) { ok[t[0]] = 1; });
-            return [['mkdir', 'New folder'], ['new_md', 'New file'], ['up2k', 'File upload']]
-                .filter(function (t) { return ok[t[0]]; })
-                .map(function (t) {
-                    return { label: t[1], select: function () { opentool(t[0]); } };
-                });
-        }
-    });
+    // + New: its menu is forknew.js's
+    ui.newbtn = newbtn;
 
     var side = el('div', { class: 'fk-side' });
     document.body.insertBefore(side, top.nextSibling);
