@@ -9,8 +9,10 @@
 //   forkui.icon(name)     an inline SVG icon (aria-hidden), names in ICONS
 //   forkui.style(css)     appends a <style>
 //   forkui.narrow         matchMedia of the phone layout (.matches, 'change' events)
-//   forkui.menu(opts)     a popup menu on a trigger button, a bottom sheet at phone width;
-//                         an item is a command (select: fn) or a link (href)
+//   forkui.menu(opts)     a popup menu on a trigger button, a bottom sheet at phone width
+//                         (swipe it down, tap outside or Esc to close); an item is a command
+//                         (select: fn) or a link (href). Without opts.trigger it is a shared
+//                         menu opened by script: open(fromKeyboard, {from, x, y})
 //   forkui.dialog(opts)   a modal <dialog>: Esc, tap outside, back gesture, focus returns
 // Light theme only (design tokens on :root, --fk-*). English strings, no tl/.
 
@@ -134,14 +136,21 @@
         'max-height:80dvh;border-radius:var(--fk-r) var(--fk-r) 0 0;padding:8px 0 calc(8px + env(safe-area-inset-bottom))}',
         '.fk-menu.fk-sheet [role=menuitem]{min-height:48px;font-size:16px}',
         '.fk-menu.fk-sheet::backdrop{background:rgba(0,0,0,.4)}',
-        '.fk-sheet-h{margin:4px 16px 8px;font:500 14px/1.4 var(--fk-font);color:var(--fk-muted)}',
+        '.fk-sheet-h{margin:4px 16px 8px;font:500 14px/1.4 var(--fk-font);color:var(--fk-muted);',
+        'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;touch-action:none}',
+        // the sheet's grab handle: a swipe down on it (or on a sheet that doesn't scroll) closes it
+        '.fk-grab{height:20px;margin-top:-8px;touch-action:none;cursor:grab}',
+        '.fk-grab::before{content:"";display:block;width:32px;height:4px;margin:8px auto;border-radius:2px;background:var(--fk-line)}',
+        '@media (pointer:fine){.fk-menu.fk-dense:not(.fk-sheet) [role=menuitem]{min-height:32px}}',
 
         // dialogs
         '.fk-dlg{border:0;padding:0;color:var(--fk-text);background:var(--fk-surface);font:14px/1.4 var(--fk-font)}',
         '.fk-dlg::backdrop{background:rgba(0,0,0,.4)}'
     ].join(''));
 
-    function place(menu, trigger) {
+    // under the trigger (right-aligned), or with its corner at a point (a right-click), flipped
+    // to the other side when it doesn't fit, then kept inside the viewport
+    function place(menu, trigger, at) {
         var r = trigger.getBoundingClientRect(),
             w = menu.offsetWidth,
             h = menu.offsetHeight,
@@ -150,10 +159,16 @@
             x = r.right - w,
             y = r.bottom + 4;
 
-        if (x < 8)
-            x = Math.min(r.left, vw - w - 8);
-        if (y + h > vh - 8 && r.top - h - 4 >= 8)
-            y = r.top - h - 4;
+        if (at) {
+            x = at.x + w > vw - 8 ? at.x - w : at.x;
+            y = at.y + h > vh - 8 ? at.y - h : at.y;
+        }
+        else {
+            if (x < 8)
+                x = Math.min(r.left, vw - w - 8);
+            if (y + h > vh - 8 && r.top - h - 4 >= 8)
+                y = r.top - h - 4;
+        }
         x = Math.max(8, Math.min(x, vw - w - 8));
         y = Math.max(8, Math.min(y, vh - h - 8));
         menu.style.left = x + 'px';
@@ -219,20 +234,34 @@
     // [{ label, icon, select: fn }] (called on every open, so it can follow upstream's state);
     // an item with href instead of select is a link (opens in a new tab, copies as a url),
     // and { sep: true } a separator line between groups of items;
-    // optional title, shown as the sheet's heading on a phone.
-    // Returns { el, open(fromKeyboard), close(), isOpen() }.
+    // optional title (a string, or a function called on open), shown as the sheet's heading on
+    // a phone; dense: shorter items for a mouse; onclose: called each time it has closed.
+    // Without a trigger the menu is shared (one for every row, say) and opened by script:
+    // open(fromKeyboard, { from, x, y }) opens it for `from` (where focus goes back to, and
+    // what it sits under), or with its corner at the point x, y (a right-click). It is placed
+    // by script then, so a tall menu is kept inside the viewport in every browser.
+    // Returns { el, open(fromKeyboard, src), close(), isOpen(), from(), shut() }.
     function menu(opts) {
-        var trigger = opts.trigger,
+        var trigger = opts.trigger || null,
+            cur = trigger,
+            at = null,
             id = 'fk-menu-' + (++nmenu),
-            m = el('div', { id: id, class: 'fk-menu', popover: 'auto', role: 'menu', 'aria-label': opts.label }),
+            m = el('div', {
+                id: id, class: 'fk-menu' + (opts.dense ? ' fk-dense' : ''), popover: 'auto', role: 'menu',
+                'aria-label': opts.label
+            }),
             enter = false,
             shut = 0;
 
-        trigger.setAttribute('aria-haspopup', 'menu');
-        trigger.setAttribute('aria-expanded', 'false');
-        trigger.setAttribute('aria-controls', id);
-        trigger.parentNode.insertBefore(m, trigger.nextSibling);
-        m.fk_trigger = trigger;
+        if (trigger) {
+            trigger.setAttribute('aria-haspopup', 'menu');
+            trigger.setAttribute('aria-expanded', 'false');
+            trigger.setAttribute('aria-controls', id);
+            trigger.parentNode.insertBefore(m, trigger.nextSibling);
+        }
+        else
+            document.body.appendChild(m);
+        m.fk_trigger = trigger || m;
 
         function items() {
             return Array.prototype.slice.call(m.querySelectorAll('[role=menuitem]'));
@@ -240,8 +269,12 @@
 
         function fill() {
             m.textContent = '';
-            if (narrow.matches && opts.title)
-                m.appendChild(el('h2', { class: 'fk-sheet-h', 'aria-hidden': 'true', text: opts.title }));
+            var title = typeof opts.title == 'function' ? opts.title() : opts.title;
+            if (narrow.matches) {
+                m.appendChild(el('div', { class: 'fk-grab', 'aria-hidden': 'true' }));
+                if (title)
+                    m.appendChild(el('h2', { class: 'fk-sheet-h', 'aria-hidden': 'true', text: title }));
+            }
             var lst = opts.items();
             for (var a = 0; a < lst.length; a++)
                 m.appendChild(item(lst[a]));
@@ -267,16 +300,22 @@
             }, [it.icon ? icon(it.icon) : null, el('span', { text: it.label })]);
         }
 
-        function open(fromKeyboard) {
+        function open(fromKeyboard, src) {
+            if (isOpen())
+                m.hidePopover();
+            cur = (src && src.from) || trigger;
+            at = src && typeof src.x == 'number' ? { x: src.x, y: src.y } : null;
+            m.fk_trigger = cur || m;
             fill();
             enter = !!fromKeyboard;
-            var sheet = narrow.matches;
+            var sheet = narrow.matches,
+                script = !sheet && (!anchored || !trigger);
             m.classList.toggle('fk-sheet', sheet);
-            m.classList.toggle('fk-anc', !sheet && anchored);
-            m.classList.toggle('fk-pos', !sheet && !anchored);
-            m.style.left = m.style.top = '';
+            m.classList.toggle('fk-anc', !sheet && !script);
+            m.classList.toggle('fk-pos', !sheet && script);
+            m.style.left = m.style.top = m.style.translate = m.style.touchAction = '';
             try {
-                m.showPopover({ source: trigger });
+                m.showPopover({ source: cur });
             }
             catch (e) {
                 m.showPopover();
@@ -285,8 +324,8 @@
 
         function close(keepFocus) {
             if (isOpen()) {
-                if (!keepFocus || m.contains(document.activeElement))
-                    trigger.focus({ preventScroll: true });
+                if (cur && (!keepFocus || m.contains(document.activeElement)))
+                    cur.focus({ preventScroll: true });
                 m.hidePopover();
             }
         }
@@ -297,18 +336,59 @@
 
         m.addEventListener('toggle', function (e) {
             var on = e.newState == 'open';
-            trigger.setAttribute('aria-expanded', on ? 'true' : 'false');
+            if (cur && cur.hasAttribute('aria-haspopup'))
+                cur.setAttribute('aria-expanded', on ? 'true' : 'false');
             if (on) {
-                if (m.classList.contains('fk-pos'))
-                    place(m, trigger);
+                if (m.classList.contains('fk-pos') && cur)
+                    place(m, cur, at);
+                // a sheet that doesn't scroll can be swiped down from anywhere on it
+                if (m.classList.contains('fk-sheet') && m.scrollHeight <= m.clientHeight)
+                    m.style.touchAction = 'none';
                 if (enter && items()[0])
                     items()[0].focus();
                 return;
             }
             shut = Date.now();
+            m.style.translate = '';
             // light dismiss or Esc: focus goes back to the trigger unless it went elsewhere
-            refocus(trigger, m);
+            refocus(cur, m);
+            // (unless it was opened again before this event came)
+            if (opts.onclose && !isOpen())
+                opts.onclose();
         });
+
+        // a bottom sheet follows a finger swiping it down and closes past a short distance (or
+        // on a quick flick); from its grab handle, or anywhere while it isn't scrolled
+        var drag = null;
+        m.addEventListener('pointerdown', function (e) {
+            drag = null;
+            if (!m.classList.contains('fk-sheet') || e.button ||
+                (m.scrollTop > 0 && !e.target.closest('.fk-grab,.fk-sheet-h')))
+                return;
+            drag = { id: e.pointerId, y: e.clientY, t: Date.now(), dy: 0 };
+        });
+        m.addEventListener('pointermove', function (e) {
+            if (!drag || e.pointerId != drag.id)
+                return;
+            drag.dy = Math.max(0, e.clientY - drag.y);
+            if (drag.dy > 6)
+                m.style.translate = '0 ' + drag.dy + 'px';
+        });
+        function undrag(e) {
+            if (!drag || e.pointerId != drag.id)
+                return;
+            var d = drag,
+                v = d.dy / Math.max(1, Date.now() - d.t);
+            drag = null;
+            if (e.type == 'pointerup' && (d.dy > Math.min(80, m.offsetHeight / 4) || (d.dy > 24 && v > 0.5))) {
+                // the click this swipe ends with picks nothing
+                eatclick();
+                return close();
+            }
+            m.style.translate = '';
+        }
+        m.addEventListener('pointerup', undrag);
+        m.addEventListener('pointercancel', undrag);
 
         m.addEventListener('keydown', function (e) {
             var lst = items(),
@@ -334,6 +414,17 @@
                 lst[to].focus();
         });
 
+        // Esc while it is open (focus may still be on what opened it, after a pointer open)
+        // closes only the menu: upstream's hotkeys (blur, close panels) and the list's (clear
+        // the selection) must not see that one
+        window.addEventListener('keydown', function (e) {
+            if (e.key != 'Escape' || !isOpen())
+                return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            close();
+        }, true);
+
         // hover follows focus, so the keyboard picks up where the pointer is
         m.addEventListener('pointermove', function (e) {
             var b = e.target.closest && e.target.closest('[role=menuitem]');
@@ -341,25 +432,31 @@
                 b.focus({ preventScroll: true });
         });
 
-        trigger.addEventListener('click', function (e) {
-            e.preventDefault();
-            // the pointerdown that light-dismissed it lands here as a click: stay closed
-            if (isOpen() || Date.now() - shut < 300)
-                return close();
-            open(e.detail === 0);
-        });
+        if (trigger) {
+            trigger.addEventListener('click', function (e) {
+                e.preventDefault();
+                // the pointerdown that light-dismissed it lands here as a click: stay closed
+                if (isOpen() || Date.now() - shut < 300)
+                    return close();
+                open(e.detail === 0);
+            });
 
-        trigger.addEventListener('keydown', function (e) {
-            if (e.key != 'ArrowDown')
-                return;
-            e.preventDefault();
-            if (!isOpen())
-                open(true);
-            else if (items()[0])
-                items()[0].focus();
-        });
+            trigger.addEventListener('keydown', function (e) {
+                if (e.key != 'ArrowDown')
+                    return;
+                e.preventDefault();
+                if (!isOpen())
+                    open(true);
+                else if (items()[0])
+                    items()[0].focus();
+            });
+        }
 
-        return { el: m, open: open, close: close, isOpen: isOpen };
+        return {
+            el: m, open: open, close: close, isOpen: isOpen,
+            from: function () { return cur; },
+            shut: function () { return shut; }
+        };
     }
 
     // a back gesture or back button closes the open dialog instead of leaving the folder: opening
