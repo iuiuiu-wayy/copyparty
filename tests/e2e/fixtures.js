@@ -33,6 +33,30 @@ const test = base.test.extend({
         await use((loc) => (hasTouch ? loc.tap() : loc.click()));
     },
 
+    // phone sizes: the nav is a drawer behind the top bar's menu button
+    narrow: async ({ viewport }, use) => {
+        await use(viewport.width < 800);
+    },
+
+    // the left nav (My files, Shared with me, ...), opening the phone drawer first
+    nav: async ({ page, press, narrow }, use) => {
+        await use(async () => {
+            if (narrow)
+                await press(page.getByRole('button', { name: 'Main menu' }));
+            const nav = page.getByRole('navigation', { name: 'Main' });
+            await base.expect(nav).toBeVisible();
+            return nav;
+        });
+    },
+
+    // pick one entry of the top bar's More tools menu
+    tool: async ({ page, press }, use) => {
+        await use(async (name) => {
+            await press(page.getByRole('button', { name: 'More tools' }));
+            await press(page.getByRole('menu', { name: 'More tools' }).getByRole('menuitem', { name, exact: true }));
+        });
+    },
+
     // what the server holds, asked as an account holder through ?ls:
     // ls('alice', '/home/alice/') -> { files: ['notes.txt', ...], dirs: ['proj', ...] }
     ls: async ({ server }, use) => {

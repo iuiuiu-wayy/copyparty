@@ -12,9 +12,41 @@
         return document.getElementById(id);
     }
 
+    if (land_home())
+        return;
+
     var repl = ebi('repl');
     if (repl)
         repl.style.display = 'none';
+
+    // drive-ux: an account holder opening / (the control panel, since / is no volume in the
+    // tested config) goes to their home folder, /home/<name>/, when the page lists it among
+    // the folders they can open; an account without one stays here. /?h is the control panel
+    // on purpose, so only a bare / moves. SR is the --rp-loc prefix, set by the page.
+    function land_home() {
+        var sr = window.SR || '',
+            un = ebi('un');
+
+        if (document.documentElement.id != 'ht_spl' || !un || location.search ||
+            location.pathname != sr + '/')
+            return false;
+
+        var home = sr + '/home/' + un.textContent + '/',
+            links = document.querySelectorAll('#f+ul a, #g+ul a');
+
+        for (var a = 0; a < links.length; a++) {
+            var p = links[a].pathname;
+            try {
+                p = decodeURIComponent(p);
+            }
+            catch (e) { }
+            if (p == home) {
+                location.replace(links[a].pathname);
+                return true;
+            }
+        }
+        return false;
+    }
 
     var head = ebi('cc'),             // the "other stuff:" heading
         list = head && head.nextElementSibling;

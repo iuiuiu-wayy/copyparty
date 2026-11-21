@@ -70,3 +70,25 @@ Each cost a manual-check round or a review finding.
   those drags away from up2k (see `dragmove.js`).
 - **CSP** (`--csp-ui`): inline `on...=` attributes and nonce-less `<script>` tags are blocked;
   assign handlers from JS. Injected `<style>` is allowed (no `style-src` in the default policy).
+
+## Drive-ux scripts: the shared helper
+
+The drive-ux look (`.scratch/drive-ux/spec.md`, ADR 0003) is built from scripts that all use
+`window.forkui` (`web/forkui.js`, first in `SCRIPTS`; its API is the comment at its top). Return
+early when `!window.forkui || !forkui.ok`: older browsers then keep upstream's plain page. Use its
+`menu` (popover, arrow keys, bottom sheet below 800 px) and `dialog` (modal, Esc / tap outside /
+optional back gesture, focus back to the opener) instead of building your own, so the
+browser-rule fallbacks live in one place. Traps found while building the frame (`web/forkshell.js`):
+
+- **Never put upstream's tree inside an `<li>`.** `reload_tree` walks up from the current folder
+  with `closest('li')` until it runs out, and an `<li>` of ours around `#tree` makes that loop
+  forever (the page hangs).
+- **`window.onpopstate` is `treectl.onpopfun`** and reloads the folder. A capture listener for
+  `popstate` on `window` does not run before it in Chromium; `forkui` wraps whatever
+  `onpopstate` holds instead (once one of its dialogs uses the back gesture).
+- **A page wider than a phone grows the layout viewport**, and fixed bars and bottom sheets then
+  sit off screen. Keep wide content scrolling inside its own box (the frame makes `#wrap` scroll
+  sideways on a phone). Upstream's meta viewport starts phones at scale 0.8; the frame sets 1.
+- **A guest page stays inside the share link and `/.cpr/`**: Outside, the proxy passes nothing
+  else. Make no other request when `acct == '*'` or on a share link, and let a failed one fail
+  quietly. `specs/shell.spec.js` checks a guest page load.

@@ -8,6 +8,8 @@
 
 (function () {
     var SCRIPTS = [
+        'forkui.js',
+        'forkshell.js',
         'grantbtn.js',
         'linkbtn.js',
         'rowsel.js',

@@ -228,6 +228,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [`nospawn` with per-user volumes](#upstream-edit-nospawn-with-per-user-volumes) | `authsrv.py` |
 | [sidebar tree of a folder with no path on disk](#upstream-edit-sidebar-tree-of-a-folder-with-no-path-on-disk) | `httpcli.py`, `scripts/sfx.ls` |
 | [end-to-end harness (tests/e2e)](#upstream-edit-end-to-end-harness-testse2e) | none |
+| [drive-ux frame (forkui.js, forkshell.js)](#upstream-edit-drive-ux-frame-forkuijs-forkshelljs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -571,6 +572,48 @@ every place this fork changes an upstream file, one section each below. On a mer
   `tests/e2e/node_modules` (~18 MB) too, if it is installed; harmless. After an upstream merge,
   run `./scripts/fork-e2e.sh`
 
+
+### upstream edit: drive-ux frame (forkui.js, forkshell.js)
+
+- **what it is:** the Drive-style frame of the file browser (drive-ux ticket 02, ADR 0003; on the
+  `drive-ux` branch until ticket 17): a top bar (server name, search box, More tools, avatar) and
+  a left nav (+ New, My files, Shared with me, Recent uploads, with upstream's folder tree under
+  the active entry), a drawer behind a menu button below 800 px. Upstream's toolbar (`#ops`),
+  account box and `#srv_info` are hidden; every toolbar tab opens from More tools, listed only
+  where upstream shows the tab, with a close button over the open tab. A guest on a share link
+  gets the top bar without nav or avatar, and the frame makes no request for them (Outside
+  passes only share links and `/.cpr/`). Light theme only (a dark theme is switched to upstream's
+  "flat light" and the theme picker hidden); the page's meta viewport is set to scale 1 (upstream
+  starts phones at 0.8). Shared with me and Recent uploads are placeholders (tickets 04), + New
+  lists upstream's create tools (ticket 05), the avatar links to the control panel (ticket 10).
+  `ctlpanel.js` also sends a bare `/` (the control panel, as `/` is no volume) to
+  `/home/<name>/` when the page lists it; `/?h` stays the control panel. `web/forkui.js` is the
+  helper every drive-ux script builds on (see the API comment at its top: element builder,
+  icons, `menu` = popover menu / phone bottom sheet with arrow keys and JS placement where CSS
+  anchor positioning or `showPopover({source})` is missing, `dialog` = modal `<dialog>` with
+  `closedby="any"` and its own tap-outside check where that is missing, back gesture through a
+  history entry, focus back to the opener; light-theme tokens `--fk-*`)
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forkui.js`, `web/forkshell.js`;
+  `fork_grants.py` adds them to upstream's `RES`
+- **fork files:** `copyparty/web/forkui.js`, `copyparty/web/forkshell.js`, the landing in
+  `copyparty/web/ctlpanel.js`, `tests/test_fork_drive_shell.py`, `tests/e2e/specs/shell.spec.js`,
+  `tests/e2e/specs/landing.spec.js`; the harness config got `name: e2eparty`,
+  `js-other: /.cpr/w/ctlpanel.js` and a fifth account `dave` with no home folder
+  (`[/home/${u%-nohome}]`, group `nohome`)
+- **on conflict:** nothing to merge, but the frame leans on upstream names, each listed in
+  `tests/test_fork_drive_shell.py`: the `#ops` tabs (`#opa_x`, the `data-dest` values,
+  `opclick`, `goto` and its `op_open` class, the inline `display` `apply_perms` sets), the global
+  `goto` / `apply_perms` / `reload_browser` and `treectl.gentab` / `rendertree` / `entree` /
+  `detree` / `goto` (wrapped or called), the tree's `#treeul li>a+a` markup, `in_shr`,
+  `window.onpopstate = treectl.onpopfun` (forkui wraps whatever `onpopstate` holds; a capture
+  listener on window does not run first in Chromium), the name search field (`#srch_namev`),
+  `settheme.go` and "flat light" at index 3, `#themes`, the `ui_no*` switches, `s_name` and
+  `have_shr` (CGV1), the meta viewport, and on the splash page `#ht_spl`, `#un`, `#f` / `#g` and
+  their volume links. Two traps found on the way: the tree must not sit inside an `<li>`
+  (`reload_tree` walks up with `closest('li')` and never ends), and a list wider than a phone
+  grows the layout viewport, putting fixed bars and sheets off screen, so `#wrap` scrolls
+  sideways there (upstream's sticky list header is lost on a phone until ticket 03). After an
+  upstream merge, run `./scripts/fork-e2e.sh` (`specs/shell.spec.js`, `specs/landing.spec.js`)
 
 ## grants: fork-only folder sharing between accounts
 

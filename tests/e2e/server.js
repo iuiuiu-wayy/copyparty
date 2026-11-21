@@ -13,8 +13,10 @@ const path = require('path');
 
 const REPO = path.resolve(__dirname, '..', '..');
 
-// the accounts of the tested config in FORK.md
-const ACCOUNTS = { admin: 'adminpw1', alice: 'alicepw1', bob: 'bobpw111', carol: 'carolpw1' };
+// the accounts of the tested config in FORK.md, plus dave, who has no home folder
+const ACCOUNTS = {
+    admin: 'adminpw1', alice: 'alicepw1', bob: 'bobpw111', carol: 'carolpw1', dave: 'davepw11',
+};
 
 // a share link alice made of her /home/alice/trip/ folder
 const SHARE_KEY = 'e2etripshare01';
@@ -33,6 +35,7 @@ function conf(tmp, port) {
     const d = (p) => path.join(tmp, p);
     return `[global]
   i: 127.0.0.1
+  name: e2eparty
   p: ${port}
   e2dsa
   shr: /share
@@ -40,6 +43,7 @@ function conf(tmp, port) {
   usernames
   grants: /shared
   js-browser: /.cpr/w/fork-browser.js
+  js-other: /.cpr/w/ctlpanel.js
   wram
   hist: ${d('hist')}
   shr-db: ${d('db/shares.db')}
@@ -49,12 +53,13 @@ function conf(tmp, port) {
 
 [groups]
   family: alice, bob
+  nohome: dave
 
 [accounts]
 ${Object.entries(ACCOUNTS).map(([u, p]) => `  ${u}: ${p}`).join('\n')}
 
-[/home/\${u}]
-  ${d('srv/home')}/\${u}
+[/home/\${u%-nohome}]
+  ${d('srv/home')}/\${u%-nohome}
   accs:
     A: \${u}
     a: admin
