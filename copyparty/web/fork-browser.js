@@ -21,6 +21,7 @@
         'forkviews.js',
         'forksearch.js',
         'forkmove.js',
+        'forkrename.js',
         'forkgrid.js',
     ];
 

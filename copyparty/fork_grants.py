@@ -34,8 +34,8 @@ if True:  # pylint: disable=using-constant-test
 # checkboxes (rowsel.js), drag to move (dragmove.js), the control panel tidy-up
 # (ctlpanel.js) and the drive-ux look (forkui.js, forkshell.js, forkacct.js,
 # forknew.js, forklist.js, forkrowmenu.js, forkviews.js, forksearch.js, forkmove.js,
-# forkgrid.js);
-# registered here so upstream's list in __init__ stays as it is
+# forkrename.js, forkgrid.js); registered here so upstream's list in __init__ stays
+# as it is
 RES.update(
     (
         "web/grants.html",
@@ -55,6 +55,7 @@ RES.update(
         "web/forkviews.js",
         "web/forksearch.js",
         "web/forkmove.js",
+        "web/forkrename.js",
         "web/forkgrid.js",
     )
 )
