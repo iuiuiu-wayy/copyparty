@@ -208,3 +208,35 @@ and `say(text)` for its status line. It replaces `forkui.actions.share`, `filema
   (`forkshare.js` `reason`).
 - **A grant mount takes no share links** but its listing says `shr_who: auth`, so Share shows
   there and the server refuses; the refusal is shown, as for any other.
+
+## Drive-ux scripts: Move to… (forkmove.js)
+
+`web/forkmove.js` replaces `forkui.actions.move` with a folder-picker dialog and exposes
+`forkui.move.open(rows)`. It moves with paste's request (as `dragmove.js` does) and restyles
+`dragmove.js`'s `fmv-hl` / `fmv-img` from its own `<style>`. Traps found while building it:
+
+- **A folder's perms come from its own `?ls`** (`perms`), not from the parent's listing; a
+  folder with no path on disk (`/`, `/home/`) answers with empty `perms`, so it is never
+  pickable, which is right (nothing can be written there).
+- **`dirs[].href` in `?ls` is relative and URL-quoted** (and may carry `?k=` with dirkeys):
+  join it to the folder's encoded path, drop the query, and compare decoded paths when
+  checking "inside a folder being moved".
+- **In e2e tests, wait half a second after a long-press before the next tap**: `forklist.js`
+  swallows clicks for 400 ms after a long-press, so a tap right after it selects nothing.
+
+## Drive-ux scripts: rename (forkrename.js)
+
+`web/forkrename.js` wraps `fileman.rename`, so every caller (the selection bar, the row menu,
+F2, upstream's button and right-click menu) gets the small dialog for one item and upstream's
+batch panel for several. Another script renames something that isn't a selected row (the
+current folder, ticket 12) with `forkui.rename({ vp, fn, isd }, opener, done)`; `done(newvp)`
+replaces the list reload. Traps found while building it:
+
+- **F2 reaches upstream's hotkey only from outside an input**, and upstream calls
+  `fileman.rename()` without an event; `ev(undefined)` then cancels the keydown itself. Call
+  the wrap with `{}` from a menu pick, never `null`.
+- **A rename reloads the list** (`treectl.goto`), so the opener (the row's ⋮, or the row) is
+  gone when the dialog closes; focus the new row from a `msel.render` wrap instead.
+- **Don't add an Enter handler to the field**: the form's implicit submission skips an IME's
+  confirming Enter, a keydown handler doesn't.
+
