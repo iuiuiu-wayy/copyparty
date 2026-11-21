@@ -187,3 +187,24 @@ handler, so upstream's search posts it and renders the hits. Traps found while b
   results hid the breadcrumb through `treectl.hide()`).
 - **The server rate-limits searches** (429 when the last one took over 0.7 s and came less
   than 0.7 s ago); upstream writes the refusal in `#srch_q` (class `err`).
+
+## Drive-ux scripts: the Share dialog
+
+`web/forkshare.js` is the one Share dialog (`forkui.share`, see its top comment): `open(item,
+opener)`, `item(rows)` (one folder, files of one folder, or the current folder), `section({id,
+order, render(item, box)})` to add a part (General access is order 20; Add people goes before
+it), `links(item, done)` for the item's share links (from `GET /?shares&j`, `fork_shares.py`)
+and `say(text)` for its status line. It replaces `forkui.actions.share`, `fileman.share` and
+`#fshr`'s `onclick`. Traps found while building it:
+
+- **A modal `<dialog>` makes the rest of the page inert**, so upstream's `cliptxt` fallback (a
+  textarea appended to `body`) can't be selected while the dialog is open; copy from a field
+  inside the dialog.
+- **`127.0.0.1` is a secure context, a LAN address over http is not**: the e2e harness gets the
+  Clipboard API, the Pi's users don't. `specs/share.spec.js` turns `isSecureContext` off to
+  cover the fallback.
+- **Upstream's error replies are HTML-escaped text** (often inside `<pre>`, ending in a `URL:`
+  line); `unpre` escapes again for `innerHTML`. For `textContent`, strip the line and decode
+  (`forkshare.js` `reason`).
+- **A grant mount takes no share links** but its listing says `shr_who: auth`, so Share shows
+  there and the server refuses; the refusal is shown, as for any other.

@@ -37,6 +37,7 @@ from .authsrv import LEELOO_DALLAS, VFS  # typechk
 from .bos import bos
 from .fork_grants import handle_egrant, handle_grant, http_request, tx_grants
 from .fork_harden import refuse_dot_name, refuse_short_key
+from .fork_shares import tx_shares_json
 from .fork_tree import tree_ok, tree_virt
 from .qrkode import qr2svg, qrgen
 from .star import StreamTar
@@ -1572,6 +1573,9 @@ class HttpCli(object):
 
             if "hc" in self.uparam:
                 return self.tx_svcs()
+
+            if "shares" in self.uparam and "j" in self.uparam:
+                return tx_shares_json(self)  # fork
 
             if "shares" in self.uparam:
                 return self.tx_shares()

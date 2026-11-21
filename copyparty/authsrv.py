@@ -3400,6 +3400,9 @@ class AuthSrv(object):
                     t = "mapped %s share [%s] by [%s] => [%s] => [%s]"
                     self.log(t % (s_pr, s_k, s_un, s_vp, shn.realpath))
 
+            for s_k in [k for k, v in shv.nodes.items() if not v.shr_src]:  # fork
+                shv.nodes.pop(s_k)  # fork: revoked since the first read
+
             # transplant shadowing into shares
             for vn in shv.nodes.values():
                 svn, srem = vn.shr_src  # type: ignore

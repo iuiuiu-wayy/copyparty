@@ -1435,42 +1435,6 @@ class TestForkGrants(unittest.TestCase):
         ):
             self.assertTrue(zb in js, zb)
 
-    def test_browser_names_the_link_button_relies_on(self):
-        # linkbtn.js relabels #fshr's icon and <span>, replaces the two
-        # tooltip strings render() picks between on every selection change,
-        # and wraps fileman.share (rebinding #fshr's onclick, which holds the
-        # unwrapped function) to put a line at the top of #shui, whose content
-        # share() rebuilds on every open; a rename upstream loses the wording
-        with open(os.path.join(WEB, "browser.js"), "rb") as f:
-            js = f.read().decode("utf-8")
-        for zs in (
-            'id="fshr"',
-            "📨<span>share</span>",
-            "var L = Ls[lang] || Ls.eng",
-            '"fs_sc": ',
-            '"fs_ss": ',
-            "bshr.setAttribute('tt', nsel ? L.fs_ss : L.fs_sc);",
-            "var fileman = (function",
-            "r.share = function (e)",
-            "bshr.onclick = r.share;",
-            "var shui = ebi('shui');",
-            "shui = mknod('div', 'shui');",
-            "shui.innerHTML = html.join('\\n');",
-            "var msel = (function",
-            "r.getsel = function",
-        ):
-            self.assertTrue(zs in js, "browser.js no longer has: " + zs)
-        # acct is a global because util.js copies the page's CGV onto window
-        with open(os.path.join(WEB, "util.js"), "rb") as f:
-            zs = "Object.assign(window, window.CGV);"
-            self.assertTrue(zs in f.read().decode("utf-8"), "util.js no longer has: " + zs)
-        with open(os.path.join(os.path.dirname(WEB), "httpcli.py"), "rb") as f:
-            py = f.read().decode("utf-8")
-        self.assertTrue(
-            re.search(r'cgv = \{[^}]*"acct": self\.uname,', py),
-            'httpcli.py no longer puts "acct" in cgv',
-        )
-
     def test_share_links_page_has_what_the_intro_line_is_put_before(self):
         # ctlpanel.js (--js-other) finds the share links page by the html id
         # and puts its intro line before the first <span> in #wrap, meant to

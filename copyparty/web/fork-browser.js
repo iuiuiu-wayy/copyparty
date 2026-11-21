@@ -12,7 +12,6 @@
         'forkshell.js',
         'forkacct.js',
         'grantbtn.js',
-        'linkbtn.js',
         'rowsel.js',
         'dragmove.js',
         'forklist.js',
@@ -20,6 +19,7 @@
         'forknew.js',
         'forkviews.js',
         'forksearch.js',
+        'forkshare.js',
     ];
 
     var me = document.currentScript;

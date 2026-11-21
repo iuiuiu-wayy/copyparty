@@ -218,7 +218,6 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [grants](#upstream-edit-grants) | `authsrv.py`, `httpcli.py`, `svchub.py`, `__main__.py`, `cfg.py`, `web/splash.html`, `scripts/sfx.ls` |
 | [control panel tidy-up (ctlpanel.js)](#upstream-edit-control-panel-tidy-up-ctlpaneljs) | `scripts/sfx.ls` only |
 | [file-browser script loader (fork-browser.js)](#upstream-edit-file-browser-script-loader-fork-browserjs) | `scripts/sfx.ls` only |
-| [share link wording (linkbtn.js)](#upstream-edit-share-link-wording-linkbtnjs) | `scripts/sfx.ls` only |
 | [row checkboxes (rowsel.js)](#upstream-edit-row-checkboxes-rowseljs) | `scripts/sfx.ls` only |
 | [drag to move (dragmove.js)](#upstream-edit-drag-to-move-dragmovejs) | `scripts/sfx.ls` only |
 | [`--shr-adm` as a real list](#upstream-edit---shr-adm-as-a-real-list) | `svchub.py`, `httpcli.py`, `authsrv.py` |
@@ -235,6 +234,8 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [row menu (forkrowmenu.js)](#upstream-edit-row-menu-forkrowmenujs) | `scripts/sfx.ls` only |
 | [drive-ux views that aren't folders (forkviews.js)](#upstream-edit-drive-ux-views-that-arent-folders-forkviewsjs) | `scripts/sfx.ls` only |
 | [drive-ux search (forksearch.js)](#upstream-edit-drive-ux-search-forksearchjs) | `scripts/sfx.ls` only |
+| [Share dialog: share links (forkshare.js, fork_shares.py)](#upstream-edit-share-dialog-share-links-forksharejs-fork_sharespy) | `httpcli.py`, `scripts/sfx.ls` |
+| [share link revoked during a reload](#upstream-edit-share-link-revoked-during-a-reload) | `authsrv.py` |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -341,28 +342,6 @@ every place this fork changes an upstream file, one section each below. On a mer
   recheck that the grant button still shows. The loading itself has no automated check; after an
   upstream merge, open the file browser and check the grant button, the row checkboxes, the
   control panel link and dragging a file onto a folder
-
-### upstream edit: share link wording (linkbtn.js)
-
-- **what it is:** says who upstream's share link is for (`web/linkbtn.js`, loaded by
-  `fork-browser.js`): the share button reads "🔗 link", its two tooltips say anyone with the link
-  can open it, and the share-link dialog starts with "Anyone with this link can open it, no
-  account needed." Ticket grants/16; the grant button's matching words are in `grantbtn.js`
-- **upstream lines touched:** only `scripts/sfx.ls` (`web/linkbtn.js`); `browser.js` and `tl/`
-  are untouched. `fork_grants.py` adds it to upstream's `RES` next to `grantbtn.js`; one line
-  in `fork-browser.js`'s `SCRIPTS`
-- **fork files:** `copyparty/web/linkbtn.js`, `tests/test_fork_grants.py`
-  (`test_every_loaded_browser_script_is_registered_and_served`, `test_browser_names_the_link_button_relies_on`)
-- **on conflict:** nothing to merge, but the script leans on upstream's browser.js by name: it
-  sets `#fshr`'s `innerHTML` (upstream's `📨<span>share</span>`), overwrites `L.fs_sc` /
-  `L.fs_ss` (which `fileman.render` puts in `#fshr`'s `tt` on every selection change), and wraps
-  `fileman.share` to prepend its line to `#shui`'s first `<div>`, which `share` rebuilds on every
-  open; since upstream bound `bshr.onclick = r.share` before the wrap, it rebinds `#fshr`'s
-  `onclick` to the wrapper. It also reads `msel.getsel` and `acct` (from `CGV`; it does nothing
-  for guests). `test_browser_names_the_link_button_relies_on` reads `browser.js` and
-  fails if one of those names goes. Behaviour has no automated check; after an upstream merge,
-  check the button's label and tooltip with and without a selection, and open the share-link
-  dialog twice
 
 ### upstream edit: row checkboxes (rowsel.js)
 
@@ -814,6 +793,67 @@ every place this fork changes an upstream file, one section each below. On a mer
   is upstream's: a text or other non-media hit opens its folder (the search ends), an image
   the lightbox. After an upstream merge, run `./scripts/fork-e2e.sh specs/search.spec.js`
 
+### upstream edit: Share dialog: share links (forkshare.js, fork_shares.py)
+
+- **what it is:** the Share dialog of the Drive-style file browser, its General access part
+  (drive-ux ticket 08; on the `drive-ux` branch until ticket 17). Share in the selection bar,
+  the row menu (`forkui.actions.share`), upstream's `#fshr` button and its share hotkey all open
+  one dialog on the item: one folder, files of one folder, or the current folder with nothing
+  selected. General access is Restricted or Anyone with the link: the latter offers a form
+  (Access: Viewer / Viewer and uploader / Uploader, only what the folder's perms allow and only
+  Viewer for files; optional password; expiry never / 1 hour / 1 day / 7 days (default) / 30
+  days; optional link name) that posts upstream's `?share` request, and lists every share link
+  on the item (its url in a read-only field, access, password, time left, who made it if not
+  you) with Copy link and Remove (`?eshare=rm`). Back to Restricted removes them all, after an
+  inline ask. Server refusals are shown as given (`role=alert`); results are announced in a
+  polite status line. Copy uses the Clipboard API in a secure context, else selects the link's
+  field and `execCommand('copy')` (plain http on the LAN is no secure context), else leaves it
+  selected and says so. It replaces the fork's 🔗 link button (`linkbtn.js`, ticket grants/16,
+  retired with its test). Guests never see Share (upstream's `can_shr`) and nothing here makes a
+  request before the dialog opens. A dialog part can be added before General access with
+  `forkui.share.section` (ticket 09's Add people)
+- **the json list:** `GET /?shares&j` (account-wide, so at the root, `SR + '/?shares&j'`):
+  `{"now": unixtime, "rows": [{"k", "url", "vp": "/vol/path" (no `--rp-loc`, no trailing
+  slash), "files": [names] ([] for a folder link), "pw": bool, "pr": "rwmdg." letters, "un",
+  "t0", "t1" (0 = never)}]}`: the rows of the `?shares` page under its checks (403 for a guest
+  instead of the page's "you're not logged in"; the caller's own links, everyone's for
+  `--shr-adm`). `url` is the link `handle_share` answers with (`shr_site`, else scheme://host;
+  `--rp-loc`; the file name for a one-file link). No password hash goes out
+- **upstream lines touched:** `httpcli.py`: one import line, and in `handle_get`'s account-wide
+  block two lines right before `if "shares" in self.uparam: return self.tx_shares()`:
+  `if "shares" in self.uparam and "j" in self.uparam: return tx_shares_json(self)  # fork`.
+  `scripts/sfx.ls`: `copyparty/fork_shares.py`, `web/forkshare.js`; `fork_grants.py` adds it to
+  upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` (replacing `linkbtn.js`'s)
+- **fork files:** `copyparty/fork_shares.py`, `copyparty/web/forkshare.js`,
+  `tests/test_fork_shares_json.py`, `tests/test_fork_drive_share.py`,
+  `tests/e2e/specs/share.spec.js`
+- **on conflict:** `httpcli.py`: keep the two lines before upstream's `?shares` dispatch.
+  `fork_shares.py` copies `tx_shares`' row query and checks and `handle_share`'s link format
+  (keep in step; `test_same_rows_as_the_page` and `test_rows_of_a_folder_and_a_file_link`
+  compare them). The dialog leans on upstream names listed in `tests/test_fork_drive_share.py`:
+  `fileman.share` and `#fshr`'s `onclick` (replaced), `#fshr`'s `hide` class, `perms`, the
+  `?share` body keys and 201 reply, `?eshare=rm&skey=`, util.js's `noq_href`, `uricom_dec`,
+  `get_evpath`, `hunpre`, `randstr`, `has`. After an upstream merge, run
+  `./scripts/fork-e2e.sh specs/share.spec.js`
+- **known gap:** a grant mount refuses share links (`shr_who` "no", set in `fork_grants.py`)
+  but its listing still says `auth`, so upstream and the dialog offer Share there and the
+  server refuses with "you dont have perms to create shares from this volume" (shown)
+
+### upstream edit: share link revoked during a reload
+
+- **what it is:** fixes an upstream race found by the Share dialog's end-to-end tests (drive-ux
+  ticket 08): `AuthSrv._reload` reads the share table twice (once to make a node per link, once
+  to map each to its source), and `?eshare=rm` deletes rows outside the reload mutex. A link
+  revoked between the two reads kept a node with no source, and the reload died with
+  `TypeError: cannot unpack non-iterable NoneType object` (a 500 to whoever caused the reload,
+  e.g. someone else creating a link, and a half-applied reload). Now such nodes are dropped, as
+  upstream drops a link whose owner lost access
+- **upstream lines touched:** `authsrv.py` `_reload`, right before `# transplant shadowing into
+  shares`: two lines (marked `# fork`) popping every `shv.nodes` entry whose `shr_src` is unset
+- **fork files:** `tests/test_fork_shr_race.py`
+- **on conflict / if upstream fixes it:** **take upstream's version and drop ours**; keep the
+  test if it still passes
+
 ## grants: fork-only folder sharing between accounts
 
 see `docs/adr/0001` and `.scratch/grants/spec.md`. Work in progress: tickets 06 (the tracer
@@ -843,8 +883,9 @@ what works so far:
 * the **grant button** (`web/grantbtn.js`), loaded by `web/fork-browser.js` with
   `js-browser: /.cpr/w/fork-browser.js` (`--js-browser`; behind a reverse proxy with `--rp-loc`,
   prefix that path). It reads "🤝 people" (tooltip: "give an account or group on this server
-  access to this folder") and sits beside the share link button ("🔗 link", see
-  [linkbtn.js](#upstream-edit-share-link-wording-linkbtnjs)) in the file browser; it acts on the
+  access to this folder") and sits beside upstream's share button in the file browser (its
+  share links now come from the drive-ux Share dialog, see
+  [forkshare.js](#upstream-edit-share-dialog-share-links-forksharejs-fork_sharespy)); it acts on the
   current folder, or on the one folder selected; it
   hides when a file or several things are selected, for guests, without read access, inside
   `/shared/` and share links, and when grants are off (it asks `?grants=rcpts` once per page load).
