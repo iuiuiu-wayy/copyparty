@@ -40,6 +40,7 @@ the Nextcloud features we want to keep:
 | move files by dragging, like Nextcloud | ✅ `web/dragmove.js` through `js-browser: /.cpr/w/fork-browser.js`, fork-only; drag rows of the list view onto a folder row, a folder in the sidebar tree or a breadcrumb, and they move there with paste's `?move` request. A selected row carries the whole selection, an unselected one only itself. A progress toast with abort, then one toast naming each item the server refused and why (its reason, minus the URL line). A drop moves without asking. Checked by hand in Chrome, no automated check (ticket 02's Comments; [its upstream edit](#upstream-edit-drag-to-move-dragmovejs)): in grid view and search results no move-drag starts; a pointer reported as touch makes rows non-draggable; a file drag (a `File` in the `DataTransfer`) still gets up2k's upload overlay and uploads; a move-drag carries the items' URLs as `text/uri-list` and `text/plain`. Not checked there: a real file from the desktop, devtools touch emulation, and dropping a name into another tab or the address bar. Rows are draggable wherever you may move, so text in a row can't be selected by dragging there |
 | reach the control panel from the file browser | ✅ on the `drive-ux` branch: `web/forkacct.js`, fork-only; the account menu on the top bar's avatar (the account's initial): Change password (the control panel's form, focused), My share links, My grants, Control panel, Log out, at the `--rp-loc` prefix. Hidden for guests and with `ui_noacci`; Control panel left out with `ui_nocpla` (both unless `?fullui`), as upstream hides its own account box and link. [Its upstream edit](#upstream-edit-account-menu-forkacctjs) |
 | search like Drive | ✅ on the `drive-ux` branch: `web/forksearch.js`, fork-only; the top bar's search box searches names under the current folder (upstream's search, results in the list), with Type and Modified chips, Advanced (upstream's full form), `/` to focus, Esc or ✕ to get the folder back. Only where upstream shows its search (indexed volumes, not on share links). [Its upstream edit](#upstream-edit-drive-ux-search-forksearchjs) |
+| move without dragging, like Drive | ✅ on the `drive-ux` branch: `web/forkmove.js`, fork-only; **Move to…** in the selection bar and the row menu opens a folder picker at the current folder, with My files and Shared with me as roots, a breadcrumb and New folder; only a folder you can write to can be picked, never a folder being moved or anything in it. Paste's `?move` request per item; refusals are listed in the dialog by item with the server's reason. Also restyles drag to move's drop targets. [Its upstream edit](#upstream-edit-drive-ux-move-to-forkmovejs) |
 | a control panel that makes sense to users | ✅ `js-other: /.cpr/w/ctlpanel.js` + `nb`, fork-only; "other stuff:" becomes "more:" with "your share links", "your grants", recently added files, logout everywhere (in that order); "reset client settings", the `π` link and "powered by" are hidden; the share links page gets an intro line ("Links anyone can open without an account. Revoke one to stop it working."). With `chpw`, a "change password:" form of its own (new password, repeat, button) sits under "welcome back"; upstream's small "change password" link next to the login button is hidden |
 
 
@@ -235,6 +236,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [row menu (forkrowmenu.js)](#upstream-edit-row-menu-forkrowmenujs) | `scripts/sfx.ls` only |
 | [drive-ux views that aren't folders (forkviews.js)](#upstream-edit-drive-ux-views-that-arent-folders-forkviewsjs) | `scripts/sfx.ls` only |
 | [drive-ux search (forksearch.js)](#upstream-edit-drive-ux-search-forksearchjs) | `scripts/sfx.ls` only |
+| [drive-ux Move to… (forkmove.js)](#upstream-edit-drive-ux-move-to-forkmovejs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -813,6 +815,37 @@ every place this fork changes an upstream file, one section each below. On a mer
   `or`), `path` as volume + folder, and that it searches every readable volume. Opening a hit
   is upstream's: a text or other non-media hit opens its folder (the search ends), an image
   the lightbox. After an upstream merge, run `./scripts/fork-e2e.sh specs/search.spec.js`
+
+### upstream edit: drive-ux Move to… (forkmove.js)
+
+- **what it is:** the Move to… dialog of the Drive-style file browser (drive-ux ticket 07; on the
+  `drive-ux` branch until ticket 17). It replaces `forkui.actions.move` (upstream's cut, before),
+  so the selection bar's Move to… and the row menu's both open it. A modal `<dialog>` (forkui's:
+  Esc, tap outside, the back gesture, focus back to the opener; the whole screen on a phone,
+  buttons at the bottom): a heading naming what moves, **My files** / **Shared with me** root
+  buttons, a breadcrumb (`nav` "Folder path", the current folder `aria-current`), the folder
+  list ("Folders", `?ls` of the folder shown; Shared with me is `forkui.views.shared`: grants
+  "from <owner>" and server folders), **New folder** (POST `act=mkdir` to the folder shown, then
+  opens the new one) and **Move here**. It starts at the current folder (in search results, My
+  files). Move here is off, with the reason in a status line, where the account's `?ls` perms
+  have no `write`, inside a folder being moved, or where every item already is; a folder being
+  moved is listed but can't be opened. Moving is paste's request
+  (`POST <vp>?move=<dst><name>&akey=`) one item after another, then `treectl.goto()` and
+  `fileman.tx` for other tabs; all moved closes it with a toast, else an alert in the dialog
+  says how many moved and lists each refused item with the server's reason (minus the URL line),
+  and the dialog stays on the refused ones. A guest keeps upstream's cut (the picker would ask
+  for folders outside the share link). Its CSS also restyles `dragmove.js`'s drop target
+  (`fmv-hl`) and drag image (`fmv-img`); dragging itself is unchanged (mouse only)
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forkmove.js`; `fork_grants.py` adds
+  it to upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` (last: after `forklist.js`,
+  `forkviews.js` and `dragmove.js`)
+- **fork files:** `copyparty/web/forkmove.js`, `tests/test_fork_drive_move.py`,
+  `tests/e2e/specs/move.spec.js`
+- **on conflict:** nothing to merge, but it leans on upstream names, each listed in
+  `tests/test_fork_drive_move.py`: `msel.load` / `getall` and its items' `vp fn isd`, `tr2id`,
+  paste's `?move=` + `&akey=`, `fileman.tx`, `treectl.goto`, `act=mkdir` and its `X-New-Dir`
+  header, and `randstr`, `uricom_enc` / `uricom_dec`, `get_evpath`, `has`, `unpre`. After an
+  upstream merge, run `./scripts/fork-e2e.sh specs/move.spec.js specs/dragmove.spec.js`
 
 ## grants: fork-only folder sharing between accounts
 
