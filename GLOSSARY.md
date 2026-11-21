@@ -38,6 +38,10 @@ The account holder who created a share link or a grant. They can only give right
 A secret URL that opens a folder or a set of files to anyone who has it, optionally guarded by a password and an expiry.
 _Avoid_: share (on its own), public link
 
+**Dead link**:
+A share link that no longer opens anything: it expired, was revoked, its owner lost the rights it gives, or the key never existed. Everyone who opens it is told the same thing, that it expired or doesn't exist, whatever the cause. It comes back if its owner regains the rights.
+_Avoid_: broken link, expired link (expiry is only one cause)
+
 **Grant**:
 Access to a folder, given by its owner to a named account holder or group, without any secret link.
 _Avoid_: share (on its own), user share, permission
