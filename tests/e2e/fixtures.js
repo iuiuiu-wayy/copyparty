@@ -33,6 +33,39 @@ const test = base.test.extend({
         await use((loc) => (hasTouch ? loc.tap() : loc.click()));
     },
 
+    // open a row as a person would: a double-click on a desktop, a tap on a touch screen
+    open: async ({ hasTouch }, use) => {
+        await use((loc) => (hasTouch ? loc.tap() : loc.dblclick()));
+    },
+
+    // hold a finger on it (Chromium: a real touch through the devtools protocol; elsewhere
+    // the pointer events a long press makes)
+    longPress: async ({ page, browserName }, use) => {
+        await use(async (loc) => {
+            await loc.scrollIntoViewIfNeeded();
+            const b = await loc.boundingBox();
+            const x = b.x + Math.min(b.width / 2, 60), y = b.y + b.height / 2;
+            if (browserName === 'chromium') {
+                const cdp = await page.context().newCDPSession(page);
+                const pt = [{ x, y, id: 1, radiusX: 4, radiusY: 4, force: 1 }];
+                await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt });
+                await page.waitForTimeout(900);
+                await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+                await cdp.detach();
+                return;
+            }
+            const o = { pointerType: 'touch', isPrimary: true, pointerId: 7, clientX: x, clientY: y, bubbles: true };
+            await loc.dispatchEvent('pointerdown', o);
+            await page.waitForTimeout(900);
+            await loc.dispatchEvent('pointerup', o);
+        });
+    },
+
+    // the bar that replaces the breadcrumb while something is selected
+    selbar: async ({ page }, use) => {
+        await use(page.getByRole('toolbar', { name: 'Selection' }));
+    },
+
     // phone sizes: the nav is a drawer behind the top bar's menu button
     narrow: async ({ viewport }, use) => {
         await use(viewport.width < 800);

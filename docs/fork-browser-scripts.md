@@ -92,3 +92,20 @@ browser-rule fallbacks live in one place. Traps found while building the frame (
 - **A guest page stays inside the share link and `/.cpr/`**: Outside, the proxy passes nothing
   else. Make no other request when `acct == '*'` or on a share link, and let a failed one fail
   quietly. `specs/shell.spec.js` checks a guest page load.
+
+## Drive-ux scripts: the list and selection bar
+
+`web/forklist.js` owns clicks on `#files` rows (capture listeners, ahead of upstream's own) and
+exposes `forkui.list` (`open(tr)`, `rows(onlysel)`, `selbar`; see its top comment). A script
+adding something to a row (a ⋮ button, a menu) must stop its own clicks from reaching the row,
+or they select it. Traps found while building it:
+
+- **A click selects, so a script's test can't click a name to open it.** Use the harness's
+  `open` fixture (double-click on a desktop, tap on a phone).
+- **Chromium cancels a touch pointer when its own long-press starts** (`pointercancel`, then
+  `contextmenu`), so a long-press timer cleared on cancel never fires there; `forklist.js`
+  treats a touch `contextmenu` on a row as the long-press.
+- **Showing the selection bar moves the rows**, so the click that ends a long-press can land
+  on another row; swallow the next click after a long-press wherever it lands.
+- **Upstream's `msel.getsel()` duplicates after a sort** is fixed for everyone by
+  `forklist.js` (it wraps `msel.load`); counting the `sel` class still works.

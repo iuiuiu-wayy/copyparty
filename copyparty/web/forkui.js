@@ -21,6 +21,12 @@
 
     // 24x24 outline paths, drawn for this fork (no third-party icon set)
     var ICONS = {
+        // the list and selection bar (forklist.js)
+        'share': 'M9 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 1 0 0 7zM2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M19 8v6M16 11h6',
+        'download': 'M12 4v11M7 10l5 5l5-5M5 20h14',
+        'move': 'M3 7.5a1.5 1.5 0 0 1 1.5-1.5h4.6l2 2h8.4a1.5 1.5 0 0 1 1.5 1.5v8.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18zM8.5 13.5h7M13 11l2.5 2.5L13 16',
+        'delete': 'M4 7h16M10 11v6M14 11v6M6 7l1 12.1a1.5 1.5 0 0 0 1.5 1.4h7a1.5 1.5 0 0 0 1.5-1.4L18 7M9 7V4h6v3',
+        'paste': 'M9 3.5h6v3H9zM9 5H6.5A1.5 1.5 0 0 0 5 6.5v13A1.5 1.5 0 0 0 6.5 21h11a1.5 1.5 0 0 0 1.5-1.5v-13A1.5 1.5 0 0 0 17.5 5H15',
         'menu': 'M3 6h18M3 12h18M3 18h18',
         'more': 'M12 5.5v.01M12 12v.01M12 18.5v.01',
         'search': 'M10.5 4a6.5 6.5 0 1 0 0 13a6.5 6.5 0 1 0 0-13zM15.5 15.5L21 21',

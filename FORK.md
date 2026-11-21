@@ -229,6 +229,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [sidebar tree of a folder with no path on disk](#upstream-edit-sidebar-tree-of-a-folder-with-no-path-on-disk) | `httpcli.py`, `scripts/sfx.ls` |
 | [end-to-end harness (tests/e2e)](#upstream-edit-end-to-end-harness-testse2e) | none |
 | [drive-ux frame (forkui.js, forkshell.js)](#upstream-edit-drive-ux-frame-forkuijs-forkshelljs) | `scripts/sfx.ls` only |
+| [drive-ux list and selection bar (forklist.js)](#upstream-edit-drive-ux-list-and-selection-bar-forklistjs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -614,6 +615,47 @@ every place this fork changes an upstream file, one section each below. On a mer
   grows the layout viewport, putting fixed bars and sheets off screen, so `#wrap` scrolls
   sideways there (upstream's sticky list header is lost on a phone until ticket 03). After an
   upstream merge, run `./scripts/fork-e2e.sh` (`specs/shell.spec.js`, `specs/landing.spec.js`)
+
+### upstream edit: drive-ux list and selection bar (forklist.js)
+
+- **what it is:** the Drive-style file list (drive-ux ticket 03, ADR 0003; on the `drive-ux`
+  branch until ticket 17). The list shows a checkbox, an icon and the name, Modified and Size
+  (flex rows on a desktop; on a phone the name with date and size under it, so the list fits
+  and `#wrap` no longer scrolls sideways; the header sticks under the top bar again). Every
+  other column (extension, tags) is hidden through upstream's own column hiding the first time
+  a browser sees it, so it comes back from Settings' hidden-columns list (More tools). On a
+  desktop a click selects (Ctrl / Shift extend), a double-click or Enter opens; on a touch
+  screen a tap opens and a long-press (500 ms, or Android's contextmenu) selects, then taps
+  toggle; no callout or text selection. Opening does what upstream's links do: a folder
+  through its listing, images / video in the lightbox, audio in the player, text in the text
+  viewer, else the link. Names stay links (middle-click, open in new tab). While anything is
+  selected a selection bar (`role=toolbar`, one tab stop) replaces the breadcrumb, sticky under
+  the top bar: count, clear, Share (upstream's share flow until ticket 08), Download (one file,
+  else a zip), Move to… (upstream's cut until ticket 07), Delete, and More actions (Open, Rename,
+  Copy, Cut, Paste, Download as zip, Copy link, Share with people, Select all, Invert). With
+  nothing selected but upstream's clipboard full, it offers Paste here. Copy, cut and move end
+  the selection. The delete confirm reads "Delete N items forever?" (upstream's second "last
+  chance" ask stays unless quick delete is on). Keys: Enter, Delete (and Backspace on a Mac),
+  Ctrl+A, Esc clears the selection; upstream's other hotkeys stay. Upstream's bottom file-op
+  buttons (`#wfm`, `#wzip`, `#wfs`) are hidden. `rowsel.js` got accessible names on its boxes
+  ("Select <name>", "Select all")
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forklist.js`; `fork_grants.py` adds
+  it to upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` (after `rowsel.js`); five
+  icons added to `forkui.js`
+- **fork files:** `copyparty/web/forklist.js`, `tests/test_fork_drive_list.py`,
+  `tests/e2e/specs/list.spec.js`; harness fixtures `open` (double-click / tap), `longPress`,
+  `selbar`; `specs/sharelink.spec.js` now opens with `open` (a click only selects)
+- **on conflict:** nothing to merge, but the list leans on upstream names, each listed in
+  `tests/test_fork_drive_list.py`: msel (`load` wrapped to drop the duplicates `load(true)`
+  leaves after a sort, `selui`, `origin_tr` / `so`, `evsel`, the rows' `tabindex`),
+  `#files.onclick` and the `td.onclick = seltgl` it pre-empts with capture listeners, the lead
+  cell's `a.play` / `a.doc.bri[hl]` (every file has a `-txt-` link; `bri` = a text type), `img_re` and `thegrid.imshow`, fileman (`render` wrapped;
+  `delete`, `cut`, `cpy`, `paste`, `rename`; the `.hide` class on `#fren #fdel #fcut #fpst
+  #fshr`; `fd_warn1`; the `fman_clip` key), `#seldl` / `#selzip`, `#wfm #wzip #wfs`,
+  `document.onkeydown = ahotkeys` (our keys run first, in a window capture listener),
+  `filecols.set_style` / `hide`, the `chide_ok` ask and the `min` class, the header names
+  (`c`, `File Name`, `Size`, `Date`), `#bbox-overlay.visible`, `#rui` / `#shui`. After an
+  upstream merge, run `./scripts/fork-e2e.sh` (`specs/list.spec.js`)
 
 ## grants: fork-only folder sharing between accounts
 

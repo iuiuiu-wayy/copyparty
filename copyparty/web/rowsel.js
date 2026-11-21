@@ -95,6 +95,9 @@
                 td.appendChild(box.parentNode);
             }
             box.checked = clgot(tr, 'sel');
+            var nm = tr.cells[1] && tr.cells[1].querySelector('a[id]');
+            if (nm && box.getAttribute('aria-label') != 'Select ' + nm.textContent)
+                box.setAttribute('aria-label', 'Select ' + nm.textContent);
             if (box.checked)
                 nsel++;
         }
@@ -107,6 +110,7 @@
         if (!allbox) {
             allbox = mkbox('rsel-all', allclick);
             allbox.parentNode.title = 'select all / none';
+            allbox.setAttribute('aria-label', 'Select all');
             th.appendChild(allbox.parentNode);
         }
         allbox.checked = !!trs.length && nsel == trs.length;
