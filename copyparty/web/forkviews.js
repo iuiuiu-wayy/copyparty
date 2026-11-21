@@ -9,7 +9,7 @@
 // can read) as a table of Name, Location, Uploaded, Size and By; By and Uploaded are blank
 // where the server hides them. Its nav entry is hidden when ?ru answers other than 200
 // (--no-ups-page, no index). Only requests the page could already make; none for a guest
-// (forkshell.js gives them no nav and no forkui.shell).
+// (forkshell.js gives them no nav and no forkui.shell.views).
 // Built with forkui.js and forkshell.js (forkui.shell). API for later scripts:
 //   forkui.views.shared(done)  done({people: [{owner, dirs: [{name, href}]}],
 //                              server: [{name, href}]}); href SR-prefixed, URL-quoted
@@ -17,7 +17,7 @@
 
 (function () {
     var ui = window.forkui;
-    if (!ui || !ui.ok || !ui.shell || !window.treectl)
+    if (!ui || !ui.ok || !ui.shell || !ui.shell.views || !window.treectl)
         return;
 
     var el = ui.el,

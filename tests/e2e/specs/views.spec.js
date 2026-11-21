@@ -58,12 +58,13 @@ test.describe('Shared with me', () => {
         await expect(row(page, 'recipes.txt')).toBeVisible();
     });
 
-    test('carol sees only /common', async ({ page, loginAs, nav, press }) => {
+    test('carol sees only /attic and /common', async ({ page, loginAs, nav, press }) => {
+        // /attic is the search scenarios' unindexed volume, readable by carol alone
         await loginAs('carol');
         await page.goto('/home/carol/');
         await view(page, nav, press, 'Shared with me');
 
-        await expect(folders(page, 'Server folders')).toHaveText(['common']);
+        await expect(folders(page, 'Server folders')).toHaveText(['attic', 'common']);
         await expect(page.getByRole('region', { name: 'From people' })).toHaveCount(0);
     });
 

@@ -41,6 +41,21 @@ const SEED = {
     'home/bob/bike/chain.txt': 'oil it\n',
     'home/bob/old/gone.txt': 'soon gone\n',
     'lab/kit/tool.txt': 'a hammer\n',
+    // the search scenarios (specs/search.spec.js); only read, so every size shares them
+    'home/carol/search/beach.jpg': 'jpg\n',
+    'home/carol/search/beach.txt': 'txt\n',
+    'home/carol/search/beach-sunset.png': 'png\n',
+    'home/carol/search/beach-clip.mp4': 'mp4\n',
+    'home/carol/search/beach-2019.pdf': 'pdf\n',
+    'home/carol/search/sub/beach-deep.jpg': 'jpg\n',
+    'home/carol/search2/beach.jpg': 'jpg\n',
+    'home/carol/other/beach.jpg': 'jpg\n',
+    'attic/beach.txt': 'not indexed\n',
+};
+
+// seeded files with an older modified time (unix seconds), for the Modified search chip
+const SEED_MTIME = {
+    'home/carol/search/beach-2019.pdf': Date.UTC(2019, 5, 1) / 1000,
 };
 
 // uploads made at setup (PUT, so ?ru lists them): [account, path, body]
@@ -101,6 +116,13 @@ ${Object.entries(ACCOUNTS).map(([u, p]) => `  ${u}: ${p}`).join('\n')}
   accs:
     ${lab || 'r: dave'}
     A: admin
+
+[/attic]
+  ${d('srv/attic')}
+  accs:
+    r: carol
+  flags:
+    d2d
 `;
 }
 
@@ -168,6 +190,8 @@ async function start() {
         const p = path.join(tmp, 'srv', rel);
         fs.mkdirSync(path.dirname(p), { recursive: true });
         fs.writeFileSync(p, body);
+        if (SEED_MTIME[rel])
+            fs.utimesSync(p, SEED_MTIME[rel], SEED_MTIME[rel]);
     }
     for (const u of Object.keys(ACCOUNTS))
         fs.mkdirSync(path.join(tmp, 'srv', 'home', u), { recursive: true });
@@ -281,6 +305,17 @@ async function start() {
         for (const [u, vp, body] of UPLOADS) {
             r = await (await session(base, u)).put(vp, body);
             await expectStatus(r, 201, `uploading ${vp} as ${u}`);
+        }
+
+        // the search scenarios need the startup scan to have indexed the seeded files
+        const carol = await session(base, 'carol');
+        for (let i = 0; ; i++) {
+            r = await carol.postJson('/?srch', { q: 'name like beach-2019*', n: 5 });
+            if (r.status === 200 && (await r.json()).hits.length)
+                break;
+            if (i > 100)
+                throw new Error(`the seeded files were not indexed within 20 s (${r.status})`);
+            await sleep(200);
         }
     } catch (e) {
         const out = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n').slice(-30).join('\n') : '';

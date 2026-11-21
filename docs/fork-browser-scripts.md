@@ -148,3 +148,22 @@ folder picker or anything else that wants the same roots. Traps found while buil
   `(?)`) unless `--ups-when`; nothing in the reply says whether `ups_who` hid a volume.
 - **A harness grant that must be suspended** needs the owner to lose the rights: the harness
   rewrites its config and calls `?reload=cfg` at setup (see `server.js`).
+
+## Drive-ux scripts: search
+
+`web/forksearch.js` takes over the top bar's search box (`forkui.shell`, from `forkshell.js`):
+it writes the whole query into upstream's raw field `#q_raw` and runs it with that field's Enter
+handler, so upstream's search posts it and renders the hits. Traps found while building it:
+
+- **Upstream searches every readable volume**, not the folder you're in. "Under this folder"
+  is a `path` term, and the form's path field only says "starts with" (`^home/a/trip` also
+  matches `home/a/trip2/`); use `( path like p or path like p/* )` in the raw query.
+- **Typing in upstream's form fields searches on a timer** (and a second time 2 s later when
+  a search was already running). Setting a field and firing its `oninput` to get the query
+  encoded can send duplicate searches; `#q_raw`'s Enter runs exactly one.
+- **Closing a search leaves `#` in the URL** (`sethash('')`), and **opening a hit that isn't
+  media goes to its folder**, ending the search, so `#unsearch` disappears without the close
+  link; `forksearch.js` notices from `reload_browser` and also calls `treectl.show()` (the
+  results hid the breadcrumb through `treectl.hide()`).
+- **The server rate-limits searches** (429 when the last one took over 0.7 s and came less
+  than 0.7 s ago); upstream writes the refusal in `#srch_q` (class `err`).

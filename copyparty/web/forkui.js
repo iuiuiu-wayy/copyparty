@@ -22,6 +22,9 @@
 
     // 24x24 outline paths, drawn for this fork (no third-party icon set)
     var ICONS = {
+        // search chips (forksearch.js)
+        'check': 'M5 12.5l4.5 4.5L19 7',
+        'caret': 'M7 10l5 5l5-5',
         // the list and selection bar (forklist.js)
         'share': 'M9 11a3.5 3.5 0 1 0 0-7a3.5 3.5 0 1 0 0 7zM2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M19 8v6M16 11h6',
         'download': 'M12 4v11M7 10l5 5l5-5M5 20h14',
@@ -43,7 +46,6 @@
         'upfolder': 'M3 7.5a1.5 1.5 0 0 1 1.5-1.5h4.6l2 2h8.4a1.5 1.5 0 0 1 1.5 1.5v8.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18zM12 17v-6M9.5 13.5L12 11l2.5 2.5',
         'newfile': 'M6 3h8l4 4v14H6zM14 3v4h4M12 11v6M9 14h6',
         'chevron': 'M6 9l6 6l6-6',
-        'check': 'M5 12.5l4.5 4.5L19 7',
         'alert': 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 7.5v5.5M12 16.5v.01',
         'key': 'M15 3.5a5.5 5.5 0 1 0 0 11a5.5 5.5 0 1 0 0-11zM11 13L3.5 20.5M6 18l2.5 2.5M8.5 15.5L11 18',
         'link': 'M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1',
@@ -237,7 +239,8 @@
             id = 'fk-menu-' + (++nmenu),
             m = el('div', { id: id, class: 'fk-menu', popover: 'auto', role: 'menu', 'aria-label': opts.label }),
             enter = false,
-            shut = 0;
+            shut = 0,
+            ours = false;
 
         trigger.setAttribute('aria-haspopup', 'menu');
         trigger.setAttribute('aria-expanded', 'false');
@@ -298,6 +301,7 @@
             if (isOpen()) {
                 if (!keepFocus || m.contains(document.activeElement))
                     trigger.focus({ preventScroll: true });
+                ours = true;
                 m.hidePopover();
             }
         }
@@ -316,7 +320,11 @@
                     items()[0].focus();
                 return;
             }
-            shut = Date.now();
+            // only a light dismiss (its pointerdown may be on the trigger) holds a click off;
+            // closed by a pick, Esc or the trigger, the next click opens it again at once
+            if (!ours)
+                shut = Date.now();
+            ours = false;
             // light dismiss or Esc: focus goes back to the trigger unless it went elsewhere
             refocus(trigger, m);
         });

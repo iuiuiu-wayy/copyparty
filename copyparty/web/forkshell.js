@@ -126,12 +126,13 @@
         role: 'search', class: 'fk-search', on: {
             submit: function (e) {
                 e.preventDefault();
-                runsearch(q.value);
+                (ui.shell.onsearch || runsearch)(q.value);
             }
         }
     }, [ui.icon('search'), q]);
 
-    // for now the box fills upstream's name search and opens its panel (ticket 14 does more)
+    // without forksearch.js (which sets ui.shell.onsearch) the box fills upstream's name
+    // search and opens its panel
     function runsearch(txt) {
         if (!QS('#op_search.act'))
             opentool('search');
@@ -155,6 +156,9 @@
 
     var top = el('header', { class: 'fk-top' }, [menubtn, brand, search, morebtn, avatar]);
     document.body.insertBefore(top, document.body.firstChild);
+
+    // for the scripts after this one: the search box (forksearch.js) and opening a tool
+    ui.shell = { search: search, q: q, opentool: opentool };
 
     ui.menu({
         trigger: morebtn, label: 'More tools', title: 'More tools', items: function () {
@@ -265,15 +269,14 @@
     var phel = el('section', { class: 'fk-ph', 'aria-labelledby': 'fk-ph-h' });
     ebi('path').parentNode.insertBefore(phel, ebi('path'));
 
-    ui.shell = {
-        views: {},
-        // the nav entry of a view ('mine', 'shared', 'recent'), to hide or show it
-        entry: function (id) { return ents[id] && ents[id].firstChild; },
-        // the view showing ('' = a folder)
-        view: function () { return view; },
-        // the account's home folder (My files), SR-prefixed, URL-quoted
-        home: home
-    };
+    // added to ui.shell (set above with the search box)
+    ui.shell.views = {};
+    // the nav entry of a view ('mine', 'shared', 'recent'), to hide or show it
+    ui.shell.entry = function (id) { return ents[id] && ents[id].firstChild; };
+    // the view showing ('' = a folder)
+    ui.shell.view = function () { return view; };
+    // the account's home folder (My files), SR-prefixed, URL-quoted
+    ui.shell.home = home;
 
     function showview(v) {
         if (guest)
