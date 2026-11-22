@@ -352,7 +352,7 @@ bare404() {
     fi
 }
 
-# 7. Outside reaches nothing but share links and static files: a bare 404 from nginx
+# 6. Outside reaches nothing but share links and static files: a bare 404 from nginx
 bare404 "Outside: / gives a bare 404" $outside "$https/"
 bare404 "Outside: the control panel gives a bare 404" $outside "$https/?h" -u "check-user:$pw"
 bare404 "Outside: a home folder gives a bare 404" $outside "$https/home/check-user/mine.txt" -u "check-user:$pw"
@@ -396,7 +396,7 @@ for h in 127.0.0.1 unknown.example; do
     fi
 done
 
-# 8. Outside, a guest gets everything a share link gives
+# 7. Outside, a guest gets everything a share link gives
 ua='Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0' # copyparty sends HTML to browsers
 # every static file and share-link URL the page in $tmp/body refers to loads: assets_load SRC
 # (not "/share/" itself, the breadcrumb's root, which copyparty refuses to everyone)
@@ -484,7 +484,7 @@ else
     fail "Outside: a wrong share key gets copyparty's dead-link answer, as Inside" "Outside: $out, Inside: $ins"
 fi
 
-# 9. Inside reaches the whole site, answered as copyparty answers it directly. inside_as_direct
+# 8. Inside reaches the whole site, answered as copyparty answers it directly. inside_as_direct
 # NAME WANT PATH [curl args...]: the status through nginx from Inside must be WANT and equal
 # copyparty's own; an @ in PATH becomes "n" (through nginx) or "d" (direct), for writes
 inside_as_direct() {
@@ -511,7 +511,7 @@ inside_as_direct "MKCOL on a volume works" 201 /vol/dir-@/ -X MKCOL -u "check-us
 inside_as_direct "a share link opens" 200 "/share/$k_open/hello.txt"
 inside_as_direct "a wrong share key gets the dead-link answer" 403 /share/nosuchkey1234/
 
-# 6. no HTTP/2 (ALPN offers http/1.1 only) and no nginx version anywhere
+# 9. no HTTP/2 (ALPN offers http/1.1 only) and no nginx version anywhere
 alpn=$(openssl s_client -connect "127.0.0.1:$p_https" -servername "$domain" -alpn h2,http/1.1 \
     </dev/null 2>/dev/null | grep -E '^ALPN protocol|^No ALPN')
 if [ "$alpn" = "ALPN protocol: http/1.1" ]; then
