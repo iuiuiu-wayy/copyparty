@@ -17,8 +17,8 @@
     var nocpla = !fullui && (window.ui_nocpla || /[?&]nocpla\b/.exec(sloc0)),
         grants = true;
 
-    // grants may be off on this server: the recipients list answers 400 then (as grantbtn.js
-    // finds out). Shown until that answer comes
+    // grants may be off on this server: the recipients list answers 400 then (as the Share
+    // dialog's Add people finds out). Shown until that answer comes
     var xhr = new XMLHttpRequest();
     xhr.open('GET', SR + '/?grants=rcpts', true);
     xhr.onload = xhr.onerror = function () {

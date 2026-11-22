@@ -1347,7 +1347,7 @@ class TestForkGrants(unittest.TestCase):
         lst = re.search(r"SCRIPTS = \[(.*?)\]", loader, re.S)
         self.assertTrue(lst, "no SCRIPTS list in fork-browser.js")
         names = re.findall(r"'([^']+\.js)'", lst.group(1))
-        self.assertIn("grantbtn.js", names)
+        self.assertIn("forkshare.js", names)
 
         self.cinit(harden=True, no_html=True)
         for name in ["fork-browser.js"] + names:
@@ -1554,6 +1554,126 @@ class TestForkGrants(unittest.TestCase):
         for zs in (b"&lt;b&gt;", b"p&lt;q&gt;", b"n&lt;i&gt;", b"p%3Cq%3E"):
             self.assertIn(zs, b)
         self.assertEqual(self.page("alice")[gid]["rcpt"], "&lt;b&gt;")
+
+    # GET ?grants&j: the grants page's rows as json, for the drive-ux Share dialog (ticket 09)
+
+    def jlist(self, uname):
+        st, b = self.get("?grants&j", uname)
+        return st, (json.loads(b) if st == 200 else b)
+
+    def test_json_list_same_rows_as_the_page(self):
+        for dn in ("a/gone", "a/other", "a/later", "b/x"):
+            os.makedirs(dn)
+        v = ["a:home/alice:A,alice", "b:home/bob:A,bob", "fam:family:r,@family"]
+        os.makedirs("fam/pics")
+        self.ginit("family:alice,carol", v=v)
+        active = self.gid()
+        expired = self.gid(vp="/home/alice/other/", name="other", exp=60)
+        broken = self.gid(vp="/home/alice/gone/", name="gone")
+        susp = self.gid(vp="/family/pics/", name="pics")
+        later = self.gid(
+            vp="/home/alice/later/", name="later", rcpt="carol", perms=("read", "write"), exp=60
+        )
+        self.gid(vp="/home/bob/x/", name="x", uname="bob", rcpt="alice")
+        self.db_exec("update gr set t1 = 1 where id = ?", expired)
+        os.rmdir("a/gone")
+        self.regroup("family:carol")
+
+        for un in ("alice", "bob", "carol"):
+            st, jo = self.jlist(un)
+            self.assertEqual(st, 200, jo)
+            page = self.page(un)
+            self.assertEqual([r["gid"] for r in jo["rows"]], sorted(page), un)
+            for r in jo["rows"]:
+                self.assertEqual(r["state"], page[r["gid"]]["state"], un)
+                self.assertEqual(r["rcpt"], page[r["gid"]]["rcpt"], un)
+
+        st, jo = self.jlist("alice")
+        self.assertEqual(jo["top"], "shared")
+        self.assertLessEqual(abs(jo["now"] - time.time()), 5)
+        rows = {r["gid"]: r for r in jo["rows"]}
+        self.assertEqual(
+            {k: v["state"] for k, v in rows.items()},
+            {active: "active", expired: "expired", broken: "broken", susp: "suspended", later: "active"},
+        )
+        self.assertEqual(
+            rows[active],
+            {
+                "gid": active,
+                "owner": "alice",
+                "rcpt": "bob",
+                "src": "/home/alice/proj/",
+                "name": "proj",
+                "at": "/shared/alice/proj/",
+                "pr": "r",
+                "t1": 0,
+                "state": "active",
+            },
+        )
+        self.assertEqual(rows[later]["pr"], "rw")
+        self.assertEqual(rows[later]["rcpt"], "carol")
+        self.assertGreater(rows[later]["t1"], time.time() + 50 * 60)
+        self.assertEqual(rows[susp]["src"], "/family/pics/")
+
+    def test_json_list_share_admins_see_every_grant(self):
+        from copyparty.fork_util import split_names
+
+        os.makedirs("b/x")
+        v = ["a:home/alice:A,alice", "b:home/bob:A,bob"]
+        self.cinit(v=v, shr_adm=split_names("admin"))
+        self.reaccount(*(ACCS + ["admin:admin"]))
+        mine = self.gid()
+        bobs = self.gid(vp="/home/bob/x/", name="x", uname="bob", rcpt="carol")
+        self.assertEqual([r["gid"] for r in self.jlist("admin")[1]["rows"]], [mine, bobs])
+        self.assertEqual([r["gid"] for r in self.jlist("alice")[1]["rows"]], [mine])
+        self.assertEqual(self.jlist("carol")[1]["rows"], [])
+
+    def test_json_list_refusals(self):
+        self.cinit()
+        self.gid()
+        self.assertIn(self.jlist("*")[0], (401, 403))
+        self.cinit(grants="")
+        self.assertEqual(self.jlist("alice")[0], 400)
+
+    def test_json_list_names_as_they_are(self):
+        # json, not html: names come back unescaped; a group as @name
+        os.makedirs("a/p<q>")
+        self.ginit("fam:alice,bob")
+        self.gid(vp="/home/alice/p<q>/", rcpt="@fam", name="n<i>")
+        r = self.jlist("alice")[1]["rows"][0]
+        self.assertEqual((r["src"], r["rcpt"], r["name"]), ("/home/alice/p<q>/", "@fam", "n<i>"))
+        self.assertEqual(r["at"], "/shared/alice/n<i>/")
+
+    def cgv1(self, url, uname):
+        st, b = self.req("GET", url, uname, "User-Agent: Mozilla/5.0\r\n")
+        self.assertEqual(st, 200, b)
+        zm = re.search(br"CGV1 = (\{.*?\}),\s*$", b, re.M)
+        self.assertTrue(zm, b)
+        return json.loads(zm.group(1))
+
+    def test_grant_folders_say_they_take_no_share_links(self):
+        # the listing tells the browser who may make share links here (shr_who);
+        # a grant and the grants folders refuse them, so they say "no" and the
+        # file browser hides Share there; the owner's own folder is unchanged
+        self.cinit_shr()
+        self.assertEqual(self.grant()[0], 201)
+        for url in ("shared/alice/proj/", "shared/alice/proj/s/"):
+            st, b = self.get(url + "?ls", "bob")
+            self.assertEqual(st, 200, (url, b))
+            self.assertEqual(json.loads(b)["cfg"]["shr_who"], "no", url)
+        # the grants folders list with no rights at all, which offers no Share either
+        for url in ("shared/alice/", "shared/"):
+            st, b = self.get(url + "?ls", "bob")
+            self.assertEqual(st, 200, (url, b))
+            jo = json.loads(b)
+            self.assertEqual((jo["perms"], jo.get("cfg", {}).get("shr_who", "no")), ([], "no"), url)
+        st, b = self.get("home/alice/proj/?ls", "alice")
+        self.assertEqual(json.loads(b)["cfg"]["shr_who"], "auth")
+
+        # and the page itself, which the browser reads first
+        self.load_splash("browser")
+        self.assertEqual(self.cgv1("shared/alice/proj/", "bob")["shr_who"], "no")
+        self.assertEqual(self.cgv1("home/alice/proj/", "alice")["shr_who"], "auth")
 
 
 if __name__ == "__main__":

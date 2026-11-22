@@ -155,7 +155,8 @@ test.describe('the lightbox', () => {
         await expect(dlg).toBeVisible();
         // focus may go into the dialog (the lightbox doesn't pull it back), and its keys
         // don't drive the lightbox
-        const access = dlg.getByRole('combobox').first();
+        // (General access's select: Add people, first in the dialog, is disabled on a file)
+        const access = dlg.getByRole('combobox').filter({ hasText: 'Restricted' });
         await access.focus();
         await expect(access).toBeFocused();
         await page.keyboard.press('ArrowRight');

@@ -69,7 +69,7 @@ class TestForkDriveRowMenu(unittest.TestCase):
         # cell's first node: no id = text file, id prefix = kind, "(" first =
         # video), opens with play() / thegrid.imshow / showfile.show / ?v /
         # ?wopi=, copies the link with cliptxt, clicks #seldl / #selzip /
-        # #fgrant, calls fileman cut / cpy / paste / share and reads the hide
+        # calls fileman cut / cpy / paste / share and reads the hide
         # classes fileman.render sets on #fren #fdel #fcut #fpst #fshr; new
         # folder / file click rcm's own #rnfo / #rnfi (its mktemp name box)
         # where they exist, else goto('mkdir' / 'new_md'). Its contextmenu
@@ -141,7 +141,6 @@ class TestForkDriveRowMenu(unittest.TestCase):
             ),
             "util.js",
         )
-        self.assert_all(rd("copyparty", "web", "grantbtn.js"), (b"btn = mknod('a', 'fgrant');",), "grantbtn.js")
 
     def test_the_row_menu_loads_after_the_list(self):
         # it uses forkui.list and forkui.actions, which forklist.js sets
