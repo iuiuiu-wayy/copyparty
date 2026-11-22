@@ -77,6 +77,9 @@ ihdr = struct.pack(">IIBBBBB", 64, 64, 8, 2, 0, 0, 0)
 sig = b"\x89PNG\r\n\x1a\n"
 open(sys.argv[1], "wb").write(sig + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
 EOF
+# and a folder of 150 images, for a share page loading many thumbnails at once
+mkdir "$tmp/srv/vol/pics"
+for i in $(seq 150); do cp "$tmp/srv/vol/red.png" "$tmp/srv/vol/pics/$i.png"; done
 cat >"$tmp/copyparty.conf" <<EOF
 [global]
   i: 127.0.0.1
@@ -530,6 +533,84 @@ if [ -n "$ver" ] && [ -z "$leak" ]; then
     pass "responses carry no nginx version"
 else
     fail "responses carry no nginx version" "version ${ver:-unknown} in:$leak"
+fi
+
+# 10. rate limits: Outside per address (20/s, burst 200, 32 connections), Inside never. Last,
+# since a flood uses up its address's burst; each rule floods from an address of its own
+# (any 127.x works), so one rule's limit never leaks into another
+# flood SRC N URL [curl args...]: N requests as fast as one curl sends them (one connection,
+# kept alive), "@" in URL becomes 1..N; prints each status in order, one per line
+flood() {
+    local src=$1 n=$2 url=$3 i
+    shift 3
+    for i in $(seq "$n"); do
+        printf 'url = "%s"\noutput = "/dev/null"\n' "${url//@/$i}"
+    done >"$tmp/flood.cfg"
+    req "$src" -w '%{http_code}\n' "$@" -K "$tmp/flood.cfg"
+}
+# count CODE: how many lines of stdin are CODE
+count() { grep -cx "$1"; }
+
+# a guest opens a share folder of 150 images: the page, its static files and every thumbnail at
+# once, six at a time like a browser over HTTP/1.1 (the grid loads them lazily, so this is more
+# than a browser asks for in one go)
+req 127.0.0.13 -A "$ua" -o "$tmp/body" "$https/share/$k_open/pics/"
+{
+    echo "$https/share/$k_open/pics/"
+    grep -oE '(href|src)="/(\.cpr|share)/[^"]+"' "$tmp/body" | sed -E 's/^[a-z]+="//; s/"$//; s/&amp;/\&/g' |
+        sort -u | sed "s|^|$https|"
+    for i in $(seq 150); do echo "$https/share/$k_open/pics/$i.png?th=j"; done
+} >"$tmp/page.urls"
+n=$(wc -l <"$tmp/page.urls")
+sed 's/.*/url = "&"\noutput = "\/dev\/null"/' "$tmp/page.urls" >"$tmp/flood.cfg"
+codes=$(req 127.0.0.13 -A "$ua" -Z --parallel-max 6 -w '%{http_code}\n' -K "$tmp/flood.cfg")
+if [ "$n" -gt 150 ] && [ "$(count 200 <<<"$codes")" = "$n" ]; then
+    pass "Outside: a share folder with 150 images loads all its thumbnails at once, with no 429"
+else
+    fail "Outside: a share folder with 150 images loads all its thumbnails at once, with no 429" \
+        "$n requests: $(sort <<<"$codes" | uniq -c | tr -s ' ')"
+fi
+
+codes=$(flood 127.0.0.11 300 "$https/share/$k_open/hello.txt?n=@")
+if [ "$(count 200 <<<"$codes")" -ge 200 ] && [ "$(count 429 <<<"$codes")" -ge 1 ] &&
+    [ "$(sed -n 1,200p <<<"$codes" | count 200)" = 200 ]; then
+    pass "Outside: a flood of share-link requests from one address gets 429 after its burst"
+else
+    fail "Outside: a flood of share-link requests from one address gets 429 after its burst" \
+        "$(sort <<<"$codes" | uniq -c | tr -s ' ')"
+fi
+# right after: the flooded address is still limited, another Outside address is not
+still=$(flood 127.0.0.11 5 "$https/share/$k_open/hello.txt" | count 429)
+# (10 at once: a single one could slip into the slot that frees up every 50 ms)
+other=$(flood $outside2 10 "$https/share/$k_open/hello.txt" | count 200)
+if [ "$still" -ge 1 ] && [ "$other" = 10 ]; then
+    pass "Outside: while one address is limited, another still gets through"
+else
+    fail "Outside: while one address is limited, another still gets through" \
+        "flooded address: $still of 5 got 429; other address: $other of 10 got 200"
+fi
+
+# a scanner (the Pi saw ~300 paths in 6 s from one address; sent faster here, so that the
+# refill of 20/s can't cover it): nginx's 404 for its burst, then 429, and none of it reaches
+# copyparty
+codes=$(flood 127.0.0.12 300 "$https/fork-scan-@/.env")
+n404=$(count 404 <<<"$codes")
+n429=$(count 429 <<<"$codes")
+logged=$(grep -c fork-scan- "$tmp/copyparty.log")
+if [ "$(sed -n 1,200p <<<"$codes" | count 404)" = 200 ] && [ "$n429" -ge 1 ] &&
+    [ $((n404 + n429)) = 300 ] && [ "$logged" = 0 ]; then
+    pass "Outside: a scanner's burst of non-share paths gets 404, then 429, and never reaches copyparty"
+else
+    fail "Outside: a scanner's burst of non-share paths gets 404, then 429, and never reaches copyparty" \
+        "$(sort <<<"$codes" | uniq -c | tr -s ' '); copyparty logged $logged"
+fi
+
+# Inside, the same flood is never limited (the whole household is that one address)
+codes=$(flood $inside 300 "$https/share/$k_open/hello.txt?n=@")
+if [ "$(count 200 <<<"$codes")" = 300 ]; then
+    pass "Inside: a flood of 300 requests never gets 429"
+else
+    fail "Inside: a flood of 300 requests never gets 429" "$(sort <<<"$codes" | uniq -c | tr -s ' ')"
 fi
 
 echo
