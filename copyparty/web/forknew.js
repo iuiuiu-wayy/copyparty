@@ -487,6 +487,19 @@
         '.fk-dock{left:0}',
         '.fk-card{width:100%;max-width:none;border-radius:var(--fk-r) var(--fk-r) 0 0}',
         '.fk-card{padding-bottom:env(safe-area-inset-bottom)}',
-        '.fk-dock:has(.fk-card:not([hidden])){padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}}'
+        '.fk-dock:has(.fk-card:not([hidden])){padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}',
+        // up2k's full panel (Details): it has the screen to itself, the card and + stay out of it
+        'html:has(#op_up2k.act) .fk-dock{display:none}',
+        // upstream sizes it for a desktop: a 16em progress column crushes the file name to a
+        // few letters, and the 30em settings row and 24em ok/ng/done/busy/que strip widen the
+        // page. The name gets the room; a table or strip still too wide scrolls inside itself
+        'html.fk #op_up2k #u2conf{width:100%;max-width:30em}',
+        'html.fk #op_up2k #u2btn{max-width:100%;box-sizing:border-box}',
+        'html.fk #op_up2k #u2tabw{overflow-x:auto;overscroll-behavior-x:contain}',
+        'html.fk #op_up2k #u2tab{width:100%;min-width:18em}',
+        'html.fk #op_up2k #u2tab td:nth-child(3){width:7em}',
+        'html.fk #op_up2k #u2cards{min-width:0;max-width:100%;box-sizing:border-box;overflow-x:auto;',
+        'overscroll-behavior-x:contain;padding-inline:0}',
+        'html.fk #op_up2k #u2cards a{padding-inline:.6em}}'
     ].join(''));
 })();

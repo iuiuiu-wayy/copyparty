@@ -359,6 +359,44 @@ test('the + button never covers the last row or the audio player', async ({ page
     await expect.poll(gap).toBeGreaterThanOrEqual(0);
 });
 
+test('Details on a phone shows up2k\'s panel at full width, the card and + out of its way', async ({ page, loginAs, press, put, narrow }, info) => {
+    test.skip(!narrow, 'the phone layout');
+    const dir = await folder(put, info, 'updetails');
+    await loginAs('alice');
+    await page.goto(dir);
+    await expect(row(page, 'seed.txt')).toBeVisible();
+    await uploadFiles(page, press, [{ name: 'a-rather-long-file-name.txt', body: 'x\n' }]);
+    await expect(card(page).getByRole('heading')).toHaveText('1 upload complete', { timeout: 15000 });
+    await press(card(page).getByRole('button', { name: 'Details' }));
+    await expect(page.getByText('drop files / folders')).toBeVisible();
+
+    // while the panel is open, the card and the + are out of its way
+    await expect(card(page)).toBeHidden();
+    await expect(newbtn(page)).toHaveCount(0);
+
+    const vw = page.viewportSize().width;
+    // the file table spans the screen (minus the margins), its name column is not crushed
+    const tab = page.locator('#u2tab');
+    await expect(tab).toBeVisible();
+    expect((await tab.boundingBox()).width).toBeGreaterThan(vw - 64);
+    expect((await tab.locator('thead tr > *').first().boundingBox()).width).toBeGreaterThan(vw / 3);
+    // the ok/ng/done/busy/que strip fits or scrolls on its own; the page does not scroll sideways
+    const c = await page.locator('#u2cards').evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { right: r.right, sw: el.scrollWidth, cw: el.clientWidth, ox: getComputedStyle(el).overflowX };
+    });
+    expect(c.right).toBeLessThanOrEqual(vw);
+    if (c.sw > c.cw)
+        expect(c.ox).toMatch(/auto|scroll/);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(vw);
+
+    // closing the panel brings them back
+    await press(page.getByRole('button', { name: 'Close Upload settings' }));
+    await expect(page.getByText('drop files / folders')).toBeHidden();
+    await expect(card(page)).toBeVisible();
+    await expect(newbtn(page)).toBeVisible();
+});
+
 // 30 seconds of a quiet 440 Hz tone, 8 kHz 8-bit mono (long enough that upstream's player
 // does not finish it and go on to the next folder mid-test)
 function wav() {
