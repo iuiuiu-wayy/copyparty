@@ -484,6 +484,33 @@ else
     fail "Outside: a wrong share key gets copyparty's dead-link answer, as Inside" "Outside: $out, Inside: $ins"
 fi
 
+# 9. Inside reaches the whole site, answered as copyparty answers it directly. inside_as_direct
+# NAME WANT PATH [curl args...]: the status through nginx from Inside must be WANT and equal
+# copyparty's own; an @ in PATH becomes "n" (through nginx) or "d" (direct), for writes
+inside_as_direct() {
+    local name=$1 want=$2 path=$3 via dir
+    shift 3
+    via=$(req $inside -o /dev/null -w '%{http_code}' "$@" "$https${path//@/n}")
+    dir=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' "$@" "http://127.0.0.1:$p_cpp${path//@/d}")
+    if [ "$via" = "$want" ] && [ "$dir" = "$want" ]; then
+        pass "Inside: $name"
+    else
+        fail "Inside: $name" "through nginx $via, copyparty directly $dir, want $want"
+    fi
+}
+inside_as_direct "/ opens" 200 /
+inside_as_direct "the control panel opens" 200 "/?h" -u "check-user:$pw"
+inside_as_direct "a home folder opens" 200 /home/check-user/mine.txt -u "check-user:$pw"
+inside_as_direct "a volume opens" 200 /vol/hello.txt -u "check-user:$pw"
+inside_as_direct "the login POST logs in" 200 / --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
+echo "a small upload" >"$tmp/small.txt"
+inside_as_direct "PUT on a volume works" 201 /vol/in-@.txt -T "$tmp/small.txt" -u "check-user:$pw"
+inside_as_direct "DELETE on a volume works" 200 /vol/in-@.txt -X DELETE -u "check-user:$pw"
+inside_as_direct "PROPFIND on a volume works" 207 /vol/ -X PROPFIND -H 'Depth: 1' -u "check-user:$pw"
+inside_as_direct "MKCOL on a volume works" 201 /vol/dir-@/ -X MKCOL -u "check-user:$pw"
+inside_as_direct "a share link opens" 200 "/share/$k_open/hello.txt"
+inside_as_direct "a wrong share key gets the dead-link answer" 403 /share/nosuchkey1234/
+
 # 6. no HTTP/2 (ALPN offers http/1.1 only) and no nginx version anywhere
 alpn=$(openssl s_client -connect "127.0.0.1:$p_https" -servername "$domain" -alpn h2,http/1.1 \
     </dev/null 2>/dev/null | grep -E '^ALPN protocol|^No ALPN')
