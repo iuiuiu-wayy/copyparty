@@ -240,6 +240,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [drive-ux search (forksearch.js)](#upstream-edit-drive-ux-search-forksearchjs) | `scripts/sfx.ls` only |
 | [Share dialog: share links (forkshare.js, fork_shares.py)](#upstream-edit-share-dialog-share-links-forksharejs-fork_sharespy) | `httpcli.py`, `scripts/sfx.ls` |
 | [share link revoked during a reload](#upstream-edit-share-link-revoked-during-a-reload) | `authsrv.py` |
+| [reload publishes the volumes only when final](#upstream-edit-reload-publishes-the-volumes-only-when-final) | `authsrv.py` |
 | [drive-ux Move to… (forkmove.js)](#upstream-edit-drive-ux-move-to-forkmovejs) | `scripts/sfx.ls` only |
 | [drive-ux rename dialog (forkrename.js)](#upstream-edit-drive-ux-rename-dialog-forkrenamejs) | `scripts/sfx.ls` only |
 | [drive-ux viewers and audio player (forkview.js)](#upstream-edit-drive-ux-viewers-and-audio-player-forkviewjs) | `scripts/sfx.ls` only |
@@ -548,7 +549,9 @@ every place this fork changes an upstream file, one section each below. On a mer
   that isn't media to download it. Upstream's `run-tests.sh` copies `tests/` into `./unt`,
   `tests/e2e/node_modules` (~18 MB) too, if it is installed; harmless. After an upstream merge,
   run `./scripts/fork-e2e.sh`
-- **upstream bugs it works around (not patched; seen in v1.20.26 without fork code):** both
+- **upstream bugs it works around (seen in v1.20.26 without fork code; 1 is now patched,
+  [reload publishes the volumes only when final](#upstream-edit-reload-publishes-the-volumes-only-when-final),
+  the serialising stays, it also keeps the runs steady):** both
   leave up2k refusing every upload until a restart (HTTP 503 "server busy with fs-reload"; the
   browser retries for ever and the upload card stays on "Uploading N items"):
   1. *two reloads close together.* `AuthSrv._reload` sets `self.vfs` before it drops the
@@ -881,6 +884,26 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **upstream lines touched:** `authsrv.py` `_reload`, right before `# transplant shadowing into
   shares`: two lines (marked `# fork`) popping every `shv.nodes` entry whose `shr_src` is unset
 - **fork files:** `tests/test_fork_shr_race.py`
+- **on conflict / if upstream fixes it:** **take upstream's version and drop ours**; keep the
+  test if it still passes
+
+### upstream edit: reload publishes the volumes only when final
+
+- **what it is:** fixes an upstream bug (`.scratch/upstream-bugs/issues/03`, cause 1): two
+  reloads close together could leave up2k refusing every upload until a restart (503 "server
+  busy with fs-reload"). `AuthSrv._reload` set `self.vfs` before it dropped the share link
+  volumes from `vfs.all_vols` and mapped them; up2k, reinitialising after an earlier reload,
+  read `all_vols` in that window, its rescan thread died on the links' missing `dbd` volflag
+  (`KeyError: 'dbd'` in `init_indexes`) and `reloading` never cleared. Now `self.vfs` is set
+  after the share block, so readers see the old volumes or the finished new ones. Repro (20
+  `?reload=cfg` 5 ms apart, one link): 3 of 30 bursts stuck before, 0 of 70 after. Cause 2
+  (fast boot's `deferred_init` losing its `gid` to a reload) is not patched: `no-fastboot` on
+  the Pi. up2k's reload thread is left as is too: its wait for the dead rescan (`self.pp`
+  never cleared) is what hangs, and unsticking that means unwinding `init_indexes` halfway
+- **upstream lines touched:** `authsrv.py` `_reload`: the `self.vfs = vfs` line before
+  `self.acct = acct` is moved down to just before `zb1 = zb2 = False` (after the `if enshare:`
+  block's `db.close()`), marked `# fork`. Mounting grants still happens after it, as before
+- **fork files:** `tests/test_fork_reload_vfs.py`
 - **on conflict / if upstream fixes it:** **take upstream's version and drop ours**; keep the
   test if it still passes
 

@@ -3280,7 +3280,6 @@ class AuthSrv(object):
             if not sys.platform.startswith("linux"):
                 self.log(t % "your OS is not Linux", 1)
 
-        self.vfs = vfs
         self.acct = acct
         self.defpw = defpw
         self.grps = grps
@@ -3422,6 +3421,7 @@ class AuthSrv(object):
             cur.close()
             db.close()
 
+        self.vfs = vfs  # fork: only now, with share links hidden and mapped (up2k reads all_vols)
         zb1 = zb2 = False
         nodes = [self.vfs]
         while nodes:
