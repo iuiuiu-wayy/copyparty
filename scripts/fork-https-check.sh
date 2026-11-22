@@ -6,7 +6,8 @@
 # official image in Docker on the host network, both on free high ports bound to 127.0.0.1.
 # The site file is copied to a temp folder with test values filled in (never edited), and served
 # with a throwaway self-signed certificate made in that folder. Requests from 127.0.0.2 stand for
-# Inside (the home IP), from 127.0.0.1 for Outside. Prints one PASS/FAIL line per rule and exits
+# Inside (the home IP), from 127.0.0.1 for Outside (and other 127.x for more Outside visitors,
+# one per rate-limit rule). Prints one PASS/FAIL line per rule and exits
 # non-zero on any failure; removes the container, copyparty and the temp folder on any exit.
 # Never logs in to another machine. Not in the pre-commit hook: it needs Docker and is slow.
 set -u
@@ -40,9 +41,11 @@ command -v curl >/dev/null || die "curl not found"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/fork-https-check.XXXXXX")
 cname=fork-https-check-$$
 cpp_pid=
+slow_pid= # the open-requests rule's curl, while it runs
 
 cleanup() {
     trap '' INT TERM # a second Ctrl-C must not cut the cleanup short
+    [ -z "$slow_pid" ] || kill "$slow_pid" 2>/dev/null
     docker rm -f "$cname" >/dev/null 2>&1
     if [ -n "$cpp_pid" ]; then
         kill "$cpp_pid" 2>/dev/null
@@ -611,6 +614,38 @@ if [ "$(count 200 <<<"$codes")" = 300 ]; then
     pass "Inside: a flood of 300 requests never gets 429"
 else
     fail "Inside: a flood of 300 requests never gets 429" "$(sort <<<"$codes" | uniq -c | tr -s ' ')"
+fi
+
+# open requests: 40 downloads at once from one address, each crawling, so all stay open; Outside
+# 8 of them get 429 (the limit is 32), Inside none. The file is sparse (no disk used), made now so
+# that copyparty doesn't hash it at startup, and too big to fit in the sockets' buffers
+truncate -s 256M "$tmp/srv/vol/slow.bin"
+for i in $(seq 40); do printf 'url = "%s"\noutput = "/dev/null"\n' "$https/share/$k_open/slow.bin?n=$i"; done >"$tmp/slow.cfg"
+slow() { # SRC: sets $got to how many of the 40 got 429 within 2 s
+    local i
+    curl -sk --interface "$1" --resolve "$domain:$p_https:127.0.0.1" -Z --parallel-immediate \
+        --parallel-max 40 --limit-rate 10k -w '%{stderr}%{http_code}\n' -K "$tmp/slow.cfg" 2>"$tmp/slow.codes" &
+    slow_pid=$!
+    for i in $(seq 20); do # refused ones end at once; stop early once all 8 are in
+        [ "$(count 429 <"$tmp/slow.codes")" -ge 8 ] && break
+        sleep 0.1
+    done
+    kill $slow_pid
+    wait $slow_pid 2>/dev/null
+    slow_pid=
+    got=$(count 429 <"$tmp/slow.codes")
+}
+slow 127.0.0.14
+if [ "$got" = 8 ]; then
+    pass "Outside: past 32 open requests from one address, 429"
+else
+    fail "Outside: past 32 open requests from one address, 429" "$got of 40 got 429, want 8"
+fi
+slow $inside
+if [ "$got" = 0 ]; then
+    pass "Inside: 40 open requests at once get no 429"
+else
+    fail "Inside: 40 open requests at once get no 429" "$got of 40 got 429"
 fi
 
 echo
