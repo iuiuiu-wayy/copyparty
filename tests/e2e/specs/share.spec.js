@@ -223,7 +223,8 @@ test('a guest on a share link sees no Share and asks for no link list', async ({
     });
     await page.goto(server.share);
     await expect(row(page, 'budget.xlsx')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Share' })).toHaveCount(0);
+    // exact: the breadcrumb's folder button is named after the link (e2etripshare01)
+    await expect(page.getByRole('button', { name: 'Share', exact: true })).toHaveCount(0);
     await page.keyboard.press('s');
     await expect(page.getByRole('dialog')).toHaveCount(0);
     expect(asked).toEqual([]);
