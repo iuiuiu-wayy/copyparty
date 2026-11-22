@@ -106,6 +106,16 @@ test.describe('on a desktop', () => {
         await expect(row(page, 'x.txt')).toBeVisible();
     });
 
+    test('keyboard: Enter on a focused name opens it, as on the row', async ({ page, loginAs, selbar }) => {
+        await loginAs('alice');
+        await page.goto('/home/alice/');
+        await link(page, 'proj/').focus();
+        await page.keyboard.press('Enter');
+        await expect(page).toHaveURL(/\/home\/alice\/proj\/$/);
+        await expect(row(page, 'plan.txt')).toBeVisible();
+        await expect(selbar).toBeHidden();
+    });
+
     test('a checkbox shows on hover or once selected', async ({ page, loginAs }) => {
         await loginAs('alice');
         await page.goto('/home/alice/');

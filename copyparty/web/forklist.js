@@ -534,8 +534,9 @@
             hit = true;
         }
         else if (k == 'Enter' && !ctrl(e) && !e.shiftKey) {
+            // the row, or its name link (whose Enter would click it, and a click selects)
             var tr = ae && rowof(ae);
-            if (tr && tr == ae) {
+            if (tr && (tr == ae || ae == tr.cells[1].querySelector('a[id]'))) {
                 open(tr);
                 hit = true;
             }
