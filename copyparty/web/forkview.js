@@ -315,10 +315,17 @@
 
     function ausync() {
         var on = playing();
-        au.play.setAttribute('aria-label', on ? 'Pause' : 'Play');
-        au.play.setAttribute('title', on ? 'Pause' : 'Play');
-        au.play.replaceChild(ui.icon(on ? 'pause' : 'play'), au.play.firstChild);
-        au.name.textContent = track();
+        // upstream's progress ticks call this many times a second; swapping the icon under
+        // a press makes Safari drop the click, so only on a change
+        if (au.on !== on) {
+            au.on = on;
+            au.play.setAttribute('aria-label', on ? 'Pause' : 'Play');
+            au.play.setAttribute('title', on ? 'Pause' : 'Play');
+            au.play.replaceChild(ui.icon(on ? 'pause' : 'play'), au.play.firstChild);
+        }
+        var nm = track();
+        if (au.name.textContent != nm)
+            au.name.textContent = nm;
         // a new Audio element (upstream swaps two for gapless play) reports its own play / pause
         if (window.mp)
             [mp.au, mp.au2].forEach(function (a) {
