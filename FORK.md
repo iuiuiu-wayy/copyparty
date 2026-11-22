@@ -42,6 +42,7 @@ the Nextcloud features we want to keep:
 | search like Drive | ✅ on the `drive-ux` branch: `web/forksearch.js`, fork-only; the top bar's search box searches names under the current folder (upstream's search, results in the list), with Type and Modified chips, Advanced (upstream's full form), `/` to focus, Esc or ✕ to get the folder back. Only where upstream shows its search (indexed volumes, not on share links). [Its upstream edit](#upstream-edit-drive-ux-search-forksearchjs) |
 | move without dragging, like Drive | ✅ on the `drive-ux` branch: `web/forkmove.js`, fork-only; **Move to…** in the selection bar and the row menu opens a folder picker at the current folder, with My files and Shared with me as roots, a breadcrumb and New folder; only a folder you can write to can be picked, never a folder being moved or anything in it. Paste's `?move` request per item; refusals are listed in the dialog by item with the server's reason. Also restyles drag to move's drop targets. [Its upstream edit](#upstream-edit-drive-ux-move-to-forkmovejs) |
 | a grid view like Drive | ✅ on the `drive-ux` branch: `web/forkgrid.js`, fork-only; a List / Grid toggle beside the breadcrumb switches to upstream's grid drawn as Drive's: a Folders section of compact tiles, then file cards with upstream's lazy thumbnails and a ⋮ each. Selecting, the selection bar, the row menu and opening work as in the list; the choice is upstream's `griden` setting, so it stays with the browser. [Its upstream edit](#upstream-edit-drive-ux-grid-view-forkgridjs) |
+| see who has access to a file, like Drive's details | ✅ on the `drive-ux` branch: `web/forkdetails.js`, fork-only; ⓘ in the top bar (and Details in the row menu and the selection bar's More) opens a Details panel that follows the selection: type, size, modified, location, and Who has access (your own grants and share links on the item, from the two json lists, each opening the Share dialog). A full-screen sheet on a phone; guests get no Who has access. [Its upstream edit](#upstream-edit-drive-ux-details-panel-forkdetailsjs) |
 | a control panel that makes sense to users | ✅ `js-other: /.cpr/w/ctlpanel.js` + `nb`, fork-only; "other stuff:" becomes "more:" with "your share links", "your grants", recently added files, logout everywhere (in that order); "reset client settings", the `π` link and "powered by" are hidden; the share links page gets an intro line ("Links anyone can open without an account. Revoke one to stop it working."). With `chpw`, a "change password:" form of its own (new password, repeat, button) sits under "welcome back"; upstream's small "change password" link next to the login button is hidden |
 
 
@@ -243,6 +244,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [drive-ux viewers and audio player (forkview.js)](#upstream-edit-drive-ux-viewers-and-audio-player-forkviewjs) | `scripts/sfx.ls` only |
 | [Share dialog: add people (forkpeople.js, ?grants&j)](#upstream-edit-share-dialog-add-people-forkpeoplejs-grantsj) | `scripts/sfx.ls` only |
 | [drive-ux grid view (forkgrid.js)](#upstream-edit-drive-ux-grid-view-forkgridjs) | `scripts/sfx.ls` only |
+| [drive-ux Details panel (forkdetails.js)](#upstream-edit-drive-ux-details-panel-forkdetailsjs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -950,6 +952,36 @@ every place this fork changes an upstream file, one section each below. On a mer
   (`#ggrid > a[ref] > img`), `#ghead`'s last span (sort), `msel.selui` calling
   `thegrid.loadsel` and `msel.origin_tr`. After an upstream merge, run
   `./scripts/fork-e2e.sh specs/grid.spec.js specs/list.spec.js`
+
+### upstream edit: drive-ux Details panel (forkdetails.js)
+
+- **what it is:** the Details panel of the Drive-style file browser (drive-ux ticket 13; on the
+  `drive-ux` branch until ticket 17). ⓘ ("Details", `aria-expanded`) sits in the top bar before
+  More tools; `forkui.actions.details` makes Details show in the row menu and the selection
+  bar's More. On a desktop it is a side panel (`aside`, "Details") at the right that follows
+  the selection: it redraws after every `fileman.render` (which `msel.selui` calls after each
+  selection change, listing and search result). On a phone it is a full-screen `forkui.dialog`
+  sheet (back gesture closes it) showing what was selected when it opened. Nothing selected: a
+  prompt; several: "N items selected"; one: the name, then **Who has access** (the account
+  holder's own grants and share links on the item, from `forkui.share.people` /
+  `forkui.share.links`, i.e. `?grants&j` and `?shares&j`; each entry and Manage access open the
+  Share dialog, and the panel re-reads both lists when that dialog closes; "Not shared by
+  you." when empty), then Type (from the extension), Size (the size cell's `sortv`; not for
+  folders), Modified (the `th[name=ts]` column) and Location (the item's folder, "My files ›
+  …", opened through `treectl.goto`). A guest gets no Who has access and the script makes no
+  request. Esc in the panel closes it (`data-fk-keys` keeps `forklist.js`'s Esc from clearing
+  the selection there)
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forkdetails.js`; `fork_grants.py`
+  adds it to upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` (after `forkgrid.js`);
+  one icon in `forkui.js`; `forklist.js`'s `busy()` also skips a `[data-fk-keys]` element
+  holding focus
+- **fork files:** `copyparty/web/forkdetails.js`, `tests/test_fork_drive_details.py`,
+  `tests/e2e/specs/details.spec.js`
+- **on conflict:** nothing to merge, but it leans on upstream names, each listed in
+  `tests/test_fork_drive_details.py`: `fileman.render` and `msel.selui` calling it, the row
+  markup (`sortv` on the size cell, for listings and search hits), the `ts` header, `#fshr`'s
+  `hide` class, `treectl.goto`, `noq_href` / `uricom_dec` / `get_evpath` / `clgot`, `SR`. After
+  an upstream merge, run `./scripts/fork-e2e.sh specs/details.spec.js`
 
 ### upstream edit: drive-ux viewers and audio player (forkview.js)
 

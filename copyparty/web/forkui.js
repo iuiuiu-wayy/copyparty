@@ -24,6 +24,8 @@
 
     // 24x24 outline paths, drawn for this fork (no third-party icon set)
     var ICONS = {
+        // the Details panel (forkdetails.js)
+        'info': 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 11v5.5M12 7.5v.01',
         // viewers and the audio player (forkview.js)
         'left': 'M15 5l-7 7l7 7',
         'right': 'M9 5l7 7l-7 7',
