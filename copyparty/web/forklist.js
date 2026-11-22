@@ -148,6 +148,9 @@
 
     document.addEventListener('pointerdown', function (e) {
         ptype = e.pointerType || 'mouse';
+        // a new touch: the long-press ended without a click (Firefox, iOS), so this tap is
+        // not that click and must not be swallowed
+        eatUntil = 0;
     }, true);
 
     // the click that ends a long-press, also when the rows moved away from under the finger
