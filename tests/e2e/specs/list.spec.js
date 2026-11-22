@@ -151,7 +151,12 @@ test.describe('on a phone', () => {
         await expect(page).toHaveURL(new RegExp(dir + '$'));
         // no text selection and no browser callout on the way
         expect(await page.evaluate(() => String(getSelection()))).toBe('');
-        await expect(row(page, 'h1.txt')).toHaveCSS('user-select', 'none');
+        // (WebKit knows only -webkit-user-select; -webkit-touch-callout exists only on iOS,
+        // so no engine here can check it)
+        expect(await row(page, 'h1.txt').evaluate((e) => {
+            const c = getComputedStyle(e);
+            return c.userSelect || c.webkitUserSelect;
+        })).toBe('none');
 
         await link(page, 'h3.txt').tap();
         await expect(selbar.getByText('2 selected')).toBeVisible();
