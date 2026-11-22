@@ -284,3 +284,16 @@ found while building it:
   hundreds of files scrolls to the end, and taps `#bd_all` when it shows.
 - **The lightbox gives focus back to upstream's hidden tile** (`thegrid.onhide`); the wrap
   moves it to the card.
+
+## Drive-ux scripts: the Details panel (forkdetails.js)
+
+`web/forkdetails.js` sets `forkui.actions.details` and adds ⓘ to the top bar; it follows the
+selection by wrapping `fileman.render`, as the selection bar does. Traps found while building it:
+
+- **`forklist.js`'s keys run first, at `window` capture**, so a panel of yours never sees Esc
+  while rows are selected (the list clears the selection and stops the event). Put
+  `data-fk-keys` on an element that handles its own keys: `forklist.js` leaves keys alone while
+  focus is inside it.
+- **Read what the rows say when the action is called**: on a touch screen the row menu gives
+  the old selection back once it closes, and that runs `fileman.render` again; the phone sheet
+  keeps what it was opened with.

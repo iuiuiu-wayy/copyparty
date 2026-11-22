@@ -507,7 +507,9 @@
     function busy() {
         return (window.modal && modal.busy) || QS('dialog[open]') || QS('.fk-menu:popover-open') ||
             QS('#bbox-overlay.visible') || ebi('rui') || ebi('shui') ||
-            (window.showfile && showfile.active());
+            (window.showfile && showfile.active()) ||
+            // a part of another script that handles its own keys (forkdetails.js)
+            QS('[data-fk-keys]:focus-within');
     }
 
     window.addEventListener('keydown', function (e) {

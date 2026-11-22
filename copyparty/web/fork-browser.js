@@ -24,6 +24,7 @@
         'forkrename.js',
         'forkview.js',
         'forkgrid.js',
+        'forkdetails.js',
     ];
 
     var me = document.currentScript;
