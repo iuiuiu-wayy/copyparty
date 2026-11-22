@@ -125,6 +125,37 @@ test('Who has access lists the grants and share links on the item', async ({ pag
     await expect(access(p)).toHaveCount(0);
 });
 
+test('Who has access says so when the grants list fails, and not when grants are off', async ({ page, press, narrow }) => {
+    let reply = { status: 500, body: 'database is locked' };
+    await page.route(/\/\?grants&j$/, (r) => r.fulfill(reply));
+    await page.goto('/home/alice/');
+    // proj has a grant (to bob) the panel cannot know of now
+    await pick(press, page, 'proj/');
+    await press(ibtn(page));
+    let p = panel(page, narrow);
+    await expect(p.getByRole('heading', { name: 'proj' })).toBeVisible();
+    await expect(p.getByText(/^Couldn’t check who has access: database is locked/)).toBeVisible();
+    await expect(p.getByText('Not shared by you.')).toHaveCount(0);
+
+    // grants off in the server config: nothing to list, so nothing shared that way
+    reply = { status: 400, body: 'grants are disabled in the server config' };
+    if (narrow) {
+        await page.keyboard.press('Escape');
+        await expect(p).toBeHidden();
+        await press(row(page, 'proj/').getByRole('checkbox'));
+    }
+    await pick(press, page, 'trip/');
+    if (narrow)
+        await press(ibtn(page));
+    else
+        await press(row(page, 'proj/').getByRole('checkbox'));
+    p = panel(page, narrow);
+    await expect(p.getByRole('heading', { name: 'trip' })).toBeVisible();
+    await expect(access(p)).toHaveCount(1);
+    await expect(access(p).first()).toContainText('Anyone with the link');
+    await expect(p.getByText(/Couldn’t check/)).toHaveCount(0);
+});
+
 test('Who has access matches the server’s grant and link lists', async ({ page, put, press, narrow, server }, info) => {
     // a grant and two links each reload the server
     test.slow();

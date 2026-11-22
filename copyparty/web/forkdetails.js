@@ -308,12 +308,12 @@
         setTimeout(function () {
             if (my != token)
                 return;
-            var got = {}, n = 0, err = null;
+            var got = {}, n = 0, err = {};
 
             function one(what) {
                 return function (e, rows) {
-                    if (e && what == 'links')
-                        err = e;
+                    if (e)
+                        err[what] = e;
                     got[what] = e ? [] : rows;
                     if (++n == 2 && my == token)
                         show(it, list, note, sec, got, err);
@@ -342,7 +342,8 @@
                 }
             }, kids) : el('div', { class: 'fk-det-wb' }, kids)));
         });
-        note.textContent = err ? 'Couldn’t check the share links: ' + err : lines.length ? '' : 'Not shared by you.';
+        note.textContent = err.people ? 'Couldn’t check who has access: ' + err.people :
+            err.links ? 'Couldn’t check the share links: ' + err.links : lines.length ? '' : 'Not shared by you.';
         note.hidden = !note.textContent;
         if (can && !sec.querySelector('.fk-det-share'))
             sec.appendChild(el('button', {

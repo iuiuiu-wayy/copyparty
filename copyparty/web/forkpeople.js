@@ -11,7 +11,8 @@
 // API for later scripts:
 //   forkui.share.people(item, done)  done(err, rows): the grants on the item (a folder), rows
 //                         of /?grants&j (gid, owner, rcpt, src, name, at, pr, t1, state,
-//                         plus left: seconds to go, 0 = never); [] for files; for Details
+//                         plus left: seconds to go, 0 = never); [] for files and when grants
+//                         are off; for Details
 
 (function () {
     var ui = window.forkui;
@@ -64,6 +65,9 @@
         if (!it.dir)
             return done(null, []);
         getjson(SR + '/?grants&j', function (xhr, j) {
+            // grants off in the server config: none to list
+            if (xhr && xhr.status == 400 && /grants are disabled/.test(xhr.responseText || ''))
+                return done(null, []);
             if (xhr)
                 return done(reason(xhr));
             var now = j.now || Date.now() / 1000;
