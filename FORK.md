@@ -38,12 +38,12 @@ the Nextcloud features we want to keep:
 | edit docs | ⚠️ `--wopi` can hand off to a Collabora server running elsewhere; untested |
 | pick several files like Nextcloud | ✅ `web/rowsel.js` through `js-browser: /.cpr/w/fork-browser.js`, fork-only; a checkbox on every row of the list view and a select-all box in the header, mirroring upstream's selection, so cut / copy / paste, zip, dl, share and grant act on what is ticked. Row click, `space`, shift-click and the bottom bar work as upstream; grid view keeps its own multiselect |
 | move files by dragging, like Nextcloud | ✅ `web/dragmove.js` through `js-browser: /.cpr/w/fork-browser.js`, fork-only; drag rows of the list view onto a folder row, a folder in the sidebar tree or a breadcrumb, and they move there with paste's `?move` request. A selected row carries the whole selection, an unselected one only itself. A progress toast with abort, then one toast naming each item the server refused and why (its reason, minus the URL line). A drop moves without asking. Checked by hand in Chrome, no automated check (ticket 02's Comments; [its upstream edit](#upstream-edit-drag-to-move-dragmovejs)): in grid view and search results no move-drag starts; a pointer reported as touch makes rows non-draggable; a file drag (a `File` in the `DataTransfer`) still gets up2k's upload overlay and uploads; a move-drag carries the items' URLs as `text/uri-list` and `text/plain`. Not checked there: a real file from the desktop, devtools touch emulation, and dropping a name into another tab or the address bar. Rows are draggable wherever you may move, so text in a row can't be selected by dragging there |
-| reach the control panel from the file browser | ✅ on the `drive-ux` branch: `web/forkacct.js`, fork-only; the account menu on the top bar's avatar (the account's initial): Change password (the control panel's form, focused), My share links, My grants, Control panel, Log out, at the `--rp-loc` prefix. Hidden for guests and with `ui_noacci`; Control panel left out with `ui_nocpla` (both unless `?fullui`), as upstream hides its own account box and link. [Its upstream edit](#upstream-edit-account-menu-forkacctjs) |
-| search like Drive | ✅ on the `drive-ux` branch: `web/forksearch.js`, fork-only; the top bar's search box searches names under the current folder (upstream's search, results in the list), with Type and Modified chips, Advanced (upstream's full form), `/` to focus, Esc or ✕ to get the folder back. Only where upstream shows its search (indexed volumes, not on share links). [Its upstream edit](#upstream-edit-drive-ux-search-forksearchjs) |
-| move without dragging, like Drive | ✅ on the `drive-ux` branch: `web/forkmove.js`, fork-only; **Move to…** in the selection bar and the row menu opens a folder picker at the current folder, with My files and Shared with me as roots, a breadcrumb and New folder; only a folder you can write to can be picked, never a folder being moved or anything in it. Paste's `?move` request per item; refusals are listed in the dialog by item with the server's reason. Also restyles drag to move's drop targets. [Its upstream edit](#upstream-edit-drive-ux-move-to-forkmovejs) |
-| a grid view like Drive | ✅ on the `drive-ux` branch: `web/forkgrid.js`, fork-only; a List / Grid toggle beside the breadcrumb switches to upstream's grid drawn as Drive's: a Folders section of compact tiles, then file cards with upstream's lazy thumbnails and a ⋮ each. Selecting, the selection bar, the row menu and opening work as in the list; the choice is upstream's `griden` setting, so it stays with the browser. [Its upstream edit](#upstream-edit-drive-ux-grid-view-forkgridjs) |
-| see who has access to a file, like Drive's details | ✅ on the `drive-ux` branch: `web/forkdetails.js`, fork-only; ⓘ in the top bar (and Details in the row menu and the selection bar's More) opens a Details panel that follows the selection: type, size, modified, location, and Who has access (your own grants and share links on the item, from the two json lists, each opening the Share dialog). A full-screen sheet on a phone; guests get no Who has access. [Its upstream edit](#upstream-edit-drive-ux-details-panel-forkdetailsjs) |
-| a breadcrumb with folder actions, like Drive | ✅ on the `drive-ux` branch: `web/forkcrumbs.js`, fork-only; the breadcrumb starts at My files (or Shared with me, or a share link's name for a guest), and its last part, the current folder, opens a menu: New folder, Upload files, Upload folder, Share, Rename, Download (zip), each only where allowed. Earlier parts navigate and stay drag-to-move drop targets; on a phone the parts between the first and the current folder sit in a "…" menu so the trail fits on one line beside the Layout toggle. [Its upstream edit](#upstream-edit-drive-ux-breadcrumb-and-folder-menu-forkcrumbsjs) |
+| reach the control panel from the file browser | ✅ `web/forkacct.js`, fork-only; the account menu on the top bar's avatar (the account's initial): Change password (the control panel's form, focused), My share links, My grants, Control panel, Log out, at the `--rp-loc` prefix. Hidden for guests and with `ui_noacci`; Control panel left out with `ui_nocpla` (both unless `?fullui`), as upstream hides its own account box and link. [Its upstream edit](#upstream-edit-account-menu-forkacctjs) |
+| search like Drive | ✅ `web/forksearch.js`, fork-only; the top bar's search box searches names under the current folder (upstream's search, results in the list), with Type and Modified chips, Advanced (upstream's full form), `/` to focus, Esc or ✕ to get the folder back. Only where upstream shows its search (indexed volumes, not on share links). [Its upstream edit](#upstream-edit-drive-ux-search-forksearchjs) |
+| move without dragging, like Drive | ✅ `web/forkmove.js`, fork-only; **Move to…** in the selection bar and the row menu opens a folder picker at the current folder, with My files and Shared with me as roots, a breadcrumb and New folder; only a folder you can write to can be picked, never a folder being moved or anything in it. Paste's `?move` request per item; refusals are listed in the dialog by item with the server's reason. Also restyles drag to move's drop targets. [Its upstream edit](#upstream-edit-drive-ux-move-to-forkmovejs) |
+| a grid view like Drive | ✅ `web/forkgrid.js`, fork-only; a List / Grid toggle beside the breadcrumb switches to upstream's grid drawn as Drive's: a Folders section of compact tiles, then file cards with upstream's lazy thumbnails and a ⋮ each. Selecting, the selection bar, the row menu and opening work as in the list; the choice is upstream's `griden` setting, so it stays with the browser. [Its upstream edit](#upstream-edit-drive-ux-grid-view-forkgridjs) |
+| see who has access to a file, like Drive's details | ✅ `web/forkdetails.js`, fork-only; ⓘ in the top bar (and Details in the row menu and the selection bar's More) opens a Details panel that follows the selection: type, size, modified, location, and Who has access (your own grants and share links on the item, from the two json lists, each opening the Share dialog). A full-screen sheet on a phone; guests get no Who has access. [Its upstream edit](#upstream-edit-drive-ux-details-panel-forkdetailsjs) |
+| a breadcrumb with folder actions, like Drive | ✅ `web/forkcrumbs.js`, fork-only; the breadcrumb starts at My files (or Shared with me, or a share link's name for a guest), and its last part, the current folder, opens a menu: New folder, Upload files, Upload folder, Share, Rename, Download (zip), each only where allowed. Earlier parts navigate and stay drag-to-move drop targets; on a phone the parts between the first and the current folder sit in a "…" menu so the trail fits on one line beside the Layout toggle. [Its upstream edit](#upstream-edit-drive-ux-breadcrumb-and-folder-menu-forkcrumbsjs) |
 | a control panel that makes sense to users | ✅ `js-other: /.cpr/w/ctlpanel.js` + `nb`, fork-only; "other stuff:" becomes "more:" with "your share links", "your grants", recently added files, logout everywhere (in that order); "reset client settings", the `π` link and "powered by" are hidden; the share links page gets an intro line ("Links anyone can open without an account. Revoke one to stop it working."). With `chpw`, a "change password:" form of its own (new password, repeat, button) sits under "welcome back"; upstream's small "change password" link next to the login button is hidden |
 
 
@@ -574,8 +574,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: drive-ux frame (forkui.js, forkshell.js)
 
-- **what it is:** the Drive-style frame of the file browser (drive-ux ticket 02, ADR 0003; on the
-  `drive-ux` branch until ticket 17): a top bar (server name, search box, More tools, avatar) and
+- **what it is:** the Drive-style frame of the file browser (drive-ux ticket 02, ADR 0003): a top bar (server name, search box, More tools, avatar) and
   a left nav (+ New, My files, Shared with me, Recent uploads, with upstream's folder tree under
   the active entry), a drawer behind a menu button below 800 px. Upstream's toolbar (`#ops`),
   account box and `#srv_info` are hidden; every toolbar tab opens from More tools, listed only
@@ -616,8 +615,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: drive-ux list and selection bar (forklist.js)
 
-- **what it is:** the Drive-style file list (drive-ux ticket 03, ADR 0003; on the `drive-ux`
-  branch until ticket 17). The list shows a checkbox, an icon and the name, Modified and Size
+- **what it is:** the Drive-style file list (drive-ux ticket 03, ADR 0003). The list shows a checkbox, an icon and the name, Modified and Size
   (flex rows on a desktop; on a phone the name with date and size under it, so the list fits
   and `#wrap` no longer scrolls sideways; the header sticks under the top bar again). Every
   other column (extension, tags) is hidden through upstream's own column hiding the first time
@@ -657,7 +655,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: drive-ux + New and upload card (forknew.js)
 
-- **what it is:** drive-ux ticket 05 (on the `drive-ux` branch until ticket 17). **+ New** (the
+- **what it is:** drive-ux ticket 05. **+ New** (the
   nav's button from forkshell.js, and a floating + at the bottom right below 800 px) opens a menu:
   New folder, File upload, Folder upload (not on a touch device, as upstream), New text file
   (needs read too). Hidden where the folder isn't writable, following upstream's `html.write`
@@ -693,8 +691,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: account menu (forkacct.js)
 
-- **what it is:** the account menu of the Drive-style file browser (drive-ux ticket 10; on the
-  `drive-ux` branch until ticket 17). The top bar's avatar (a button with the account's initial,
+- **what it is:** the account menu of the Drive-style file browser (drive-ux ticket 10). The top bar's avatar (a button with the account's initial,
   put there by `forkshell.js`) opens a `forkui.menu` (a bottom sheet with the account name below
   800 px): Change password (`/?h#chpw`; `ctlpanel.js` focuses its change-password form there, or
   says chpw is off), My share links (`/?shares`, only with `shr`), My grants (`/?grants`, left
@@ -720,8 +717,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: row menu (forkrowmenu.js)
 
-- **what it is:** the row menu of the Drive-style file browser (drive-ux ticket 06; on the
-  `drive-ux` branch until ticket 17). Every list row gets a ⋮ ("Actions for <name>"; on hover
+- **what it is:** the row menu of the Drive-style file browser (drive-ux ticket 06). Every list row gets a ⋮ ("Actions for <name>"; on hover
   or focus on a desktop, always on a touch screen, 44 px) that opens one shared `forkui.menu`
   "Actions"; a right-click on a row (or Shift+F10 / the context-menu key on a focused row)
   opens the same menu at the pointer instead of upstream's `#rcm`. Entries, each shown where
@@ -757,7 +753,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 ### upstream edit: drive-ux views that aren't folders (forkviews.js)
 
 - **what it is:** the nav's *Shared with me* and *Recent uploads* of the Drive-style file browser
-  (drive-ux ticket 04; on the `drive-ux` branch until ticket 17), drawn in the section
+  (drive-ux ticket 04), drawn in the section
   `forkshell.js` puts in the list's place (`forkui.shell.views`). *Shared with me*: **From
   people**, one heading per owner with the grants this account receives (`/<top>/?ls` and
   `/<top>/<owner>/?ls`, `top` from `/?grants=rcpts`; only mounted grants are listed there, so
@@ -791,8 +787,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: drive-ux search (forksearch.js)
 
-- **what it is:** the search box of the Drive-style file browser (drive-ux ticket 14; on the
-  `drive-ux` branch until ticket 17). Typing (500 ms after the last key) or Enter in the top
+- **what it is:** the search box of the Drive-style file browser (drive-ux ticket 14). Typing (500 ms after the last key) or Enter in the top
   bar's box runs upstream's search for names under the current folder; the hits are upstream's
   search results in the list. Below the top bar a chip row (`role=toolbar` "Search filters",
   one tab stop, scrolls sideways on a phone): **Type** (Images, Videos, Audio, PDFs, Documents,
@@ -829,7 +824,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 ### upstream edit: Share dialog: share links (forkshare.js, fork_shares.py)
 
 - **what it is:** the Share dialog of the Drive-style file browser, its General access part
-  (drive-ux ticket 08; on the `drive-ux` branch until ticket 17). Share in the selection bar,
+  (drive-ux ticket 08). Share in the selection bar,
   the row menu (`forkui.actions.share`), upstream's `#fshr` button and its share hotkey all open
   one dialog on the item: one folder, files of one folder, or the current folder with nothing
   selected. General access is Restricted or Anyone with the link: the latter offers a form
@@ -909,8 +904,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: drive-ux Move to… (forkmove.js)
 
-- **what it is:** the Move to… dialog of the Drive-style file browser (drive-ux ticket 07; on the
-  `drive-ux` branch until ticket 17). It replaces `forkui.actions.move` (upstream's cut, before),
+- **what it is:** the Move to… dialog of the Drive-style file browser (drive-ux ticket 07). It replaces `forkui.actions.move` (upstream's cut, before),
   so the selection bar's Move to… and the row menu's both open it. A modal `<dialog>` (forkui's:
   Esc, tap outside, the back gesture, focus back to the opener; the whole screen on a phone,
   buttons at the bottom): a heading naming what moves, **My files** / **Shared with me** root
@@ -940,8 +934,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: drive-ux rename dialog (forkrename.js)
 
-- **what it is:** the rename dialog of the Drive-style file browser (drive-ux ticket 11; on the
-  `drive-ux` branch until ticket 17). Rename on one item (the selection bar's More actions, the
+- **what it is:** the rename dialog of the Drive-style file browser (drive-ux ticket 11). Rename on one item (the selection bar's More actions, the
   row menu, F2, and upstream's own callers of `fileman.rename`) opens a small `forkui.dialog`
   "Rename" with a "New name" field, the name selected up to the extension for a file (the
   whole name for a folder); Enter or Save sends upstream's own request (`POST <item>?move=<same
@@ -966,8 +959,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: drive-ux grid view (forkgrid.js)
 
-- **what it is:** the grid view of the Drive-style file browser (drive-ux ticket 15; on the
-  `drive-ux` branch until ticket 17). A **Layout** group (List layout / Grid layout,
+- **what it is:** the grid view of the Drive-style file browser (drive-ux ticket 15). A **Layout** group (List layout / Grid layout,
   `aria-pressed`) floats right of the breadcrumb and clicks upstream's `#griden`, so the choice
   is upstream's `griden` setting in this browser (its `g` hotkey and `?grid` still work).
   Upstream's tiles (`#ggrid`) are still built, hidden, and stay the lightbox's gallery; after
@@ -999,8 +991,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: drive-ux Details panel (forkdetails.js)
 
-- **what it is:** the Details panel of the Drive-style file browser (drive-ux ticket 13; on the
-  `drive-ux` branch until ticket 17). ⓘ ("Details", `aria-expanded`) sits in the top bar before
+- **what it is:** the Details panel of the Drive-style file browser (drive-ux ticket 13). ⓘ ("Details", `aria-expanded`) sits in the top bar before
   More tools; `forkui.actions.details` makes Details show in the row menu and the selection
   bar's More. On a desktop it is a side panel (`aside`, "Details") at the right that follows
   the selection: it redraws after every `fileman.render` (which `msel.selui` calls after each
@@ -1030,7 +1021,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 ### upstream edit: drive-ux viewers and audio player (forkview.js)
 
 - **what it is:** upstream's viewers and audio player in the Drive-style file browser (drive-ux
-  ticket 16; on the `drive-ux` branch until ticket 17). The lightbox (images, video) gets a
+  ticket 16). The lightbox (images, video) gets a
   dark top bar: Close (upstream's own `#bbox-close`, moved into it), the file's name (which
   also names the lightbox dialog), Previous file / Next file at the sides, Download, Share
   (`forkui.share.open`, the Share dialog) and More options holding upstream's other lightbox
@@ -1065,8 +1056,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: Share dialog: add people (forkpeople.js, ?grants&j)
 
-- **what it is:** the Share dialog's top part, "Add people and groups" (drive-ux ticket 09; on
-  the `drive-ux` branch until ticket 17). For a folder: pick an account or a config group
+- **what it is:** the Share dialog's top part, "Add people and groups" (drive-ux ticket 09). For a folder: pick an account or a config group
   (`?grants=rcpts`; groups show as "family (group)"), Role Viewer or Viewer and uploader (only
   where the folder's perms hold write), Time limit never (default) / 1 hour / 1 day / 7 days /
   30 days, and the folder name they see (default: the folder's own); Add posts `?grant`. Below,
@@ -1110,8 +1100,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 
 ### upstream edit: drive-ux breadcrumb and folder menu (forkcrumbs.js)
 
-- **what it is:** the breadcrumb of the Drive-style file browser (drive-ux ticket 12; on the
-  `drive-ux` branch until ticket 17). After each `reload_browser` (which rebuilds upstream's
+- **what it is:** the breadcrumb of the Drive-style file browser (drive-ux ticket 12). After each `reload_browser` (which rebuilds upstream's
   `#path`: `#entree`, then an `<i>` and an `<a href>` per level) `forkcrumbs.js` moves those
   links into its own `<nav aria-label="Breadcrumbs"><ol>` inside `#path`, drops the `<i>`s
   (chevrons are CSS) and the levels above the start: My files (the home folder, relabelled),
