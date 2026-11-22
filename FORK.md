@@ -42,6 +42,7 @@ the Nextcloud features we want to keep:
 | search like Drive | ✅ on the `drive-ux` branch: `web/forksearch.js`, fork-only; the top bar's search box searches names under the current folder (upstream's search, results in the list), with Type and Modified chips, Advanced (upstream's full form), `/` to focus, Esc or ✕ to get the folder back. Only where upstream shows its search (indexed volumes, not on share links). [Its upstream edit](#upstream-edit-drive-ux-search-forksearchjs) |
 | move without dragging, like Drive | ✅ on the `drive-ux` branch: `web/forkmove.js`, fork-only; **Move to…** in the selection bar and the row menu opens a folder picker at the current folder, with My files and Shared with me as roots, a breadcrumb and New folder; only a folder you can write to can be picked, never a folder being moved or anything in it. Paste's `?move` request per item; refusals are listed in the dialog by item with the server's reason. Also restyles drag to move's drop targets. [Its upstream edit](#upstream-edit-drive-ux-move-to-forkmovejs) |
 | a grid view like Drive | ✅ on the `drive-ux` branch: `web/forkgrid.js`, fork-only; a List / Grid toggle beside the breadcrumb switches to upstream's grid drawn as Drive's: a Folders section of compact tiles, then file cards with upstream's lazy thumbnails and a ⋮ each. Selecting, the selection bar, the row menu and opening work as in the list; the choice is upstream's `griden` setting, so it stays with the browser. [Its upstream edit](#upstream-edit-drive-ux-grid-view-forkgridjs) |
+| a breadcrumb with folder actions, like Drive | ✅ on the `drive-ux` branch: `web/forkcrumbs.js`, fork-only; the breadcrumb starts at My files (or Shared with me, or a share link's name for a guest), and its last part, the current folder, opens a menu: New folder, Upload files, Upload folder, Share, Rename, Download (zip), each only where allowed. Earlier parts navigate and stay drag-to-move drop targets; on a phone the parts between the first and the current folder sit in a "…" menu so the trail fits on one line beside the Layout toggle. [Its upstream edit](#upstream-edit-drive-ux-breadcrumb-and-folder-menu-forkcrumbsjs) |
 | a control panel that makes sense to users | ✅ `js-other: /.cpr/w/ctlpanel.js` + `nb`, fork-only; "other stuff:" becomes "more:" with "your share links", "your grants", recently added files, logout everywhere (in that order); "reset client settings", the `π` link and "powered by" are hidden; the share links page gets an intro line ("Links anyone can open without an account. Revoke one to stop it working."). With `chpw`, a "change password:" form of its own (new password, repeat, button) sits under "welcome back"; upstream's small "change password" link next to the login button is hidden |
 
 
@@ -243,6 +244,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [drive-ux viewers and audio player (forkview.js)](#upstream-edit-drive-ux-viewers-and-audio-player-forkviewjs) | `scripts/sfx.ls` only |
 | [Share dialog: add people (forkpeople.js, ?grants&j)](#upstream-edit-share-dialog-add-people-forkpeoplejs-grantsj) | `scripts/sfx.ls` only |
 | [drive-ux grid view (forkgrid.js)](#upstream-edit-drive-ux-grid-view-forkgridjs) | `scripts/sfx.ls` only |
+| [drive-ux breadcrumb and folder menu (forkcrumbs.js)](#upstream-edit-drive-ux-breadcrumb-and-folder-menu-forkcrumbsjs) | `scripts/sfx.ls` only |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -385,7 +387,7 @@ every place this fork changes an upstream file, one section each below. On a mer
   class on `#files tbody tr`; paste's request shape in `fileman.paste` (`POST
   <src>?move=<dst>&akey=<key>`, 201 = moved, else the reply text is the reason) and
   `/?fs_abrt=<key>` for abort; `fileman.tx` (tells other tabs); `treectl.goto` (refreshes list and
-  tree); tree folder links `#treeul li>a+a`, breadcrumbs `#path a[href]`; the globals `perms`
+  tree); tree folder links `#treeul li>a+a`, breadcrumbs `#path a[href]` (minus forkcrumbs.js's Shared with me link, `data-fk-view`); the globals `perms`
   (`move`), `have_mv`, `thegrid.en`, `SR`; `#unsearch` (search results). `up2k.js`: its drag
   handlers are `document.body.ondragenter` / `ondragleave` / `ondragover` / `ondrop` and it shows
   the "drop a link" toast for `text/uri-list`; the script keeps a move-drag (private type
@@ -1031,6 +1033,42 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **known gaps:** a volume that allows grants but not share links (`shr_who: no`, `grant_who:
   auth`) has no Share at all, since the dialog hangs on upstream's `#fshr` (not our config);
   the grant name is checked by the server only (a refusal says to pick another name)
+
+### upstream edit: drive-ux breadcrumb and folder menu (forkcrumbs.js)
+
+- **what it is:** the breadcrumb of the Drive-style file browser (drive-ux ticket 12; on the
+  `drive-ux` branch until ticket 17). After each `reload_browser` (which rebuilds upstream's
+  `#path`: `#entree`, then an `<i>` and an `<a href>` per level) `forkcrumbs.js` moves those
+  links into its own `<nav aria-label="Breadcrumbs"><ol>` inside `#path`, drops the `<i>`s
+  (chevrons are CSS) and the levels above the start: My files (the home folder, relabelled),
+  else a "Shared with me" link of its own that opens that view (`data-fk-view`, which
+  `dragmove.js` now skips as a drop target), or the share link's name for a guest. The links
+  stay upstream's, so `#path`'s onclick navigates and `dragmove.js` takes them as drop targets;
+  `#path` stays the box, so upstream's show / hide of it (search, tree) still applies. The last
+  level becomes a button (`aria-current=page`, `aria-haspopup=menu`) opening the **folder
+  menu** (`forkui.menu`): New folder / Upload files / Upload folder (`forkui.create.items`,
+  relabelled, without New text file), Share (`forkui.share.open(forkui.share.item())`, where
+  `#fshr` isn't hidden and the folder has perms), Rename (`forkui.rename`, then
+  `hist_replace` + `treectl.goto` to the new path; only with `have_mv` and move + write, never
+  at My files or a share root, and outside My files only when the parent's own `?ls` perms
+  allow writing, which rules out a volume's root), Download (upstream's `#zip1` link, when zip
+  is on and the folder readable). With no entry the name is plain text. On a phone (below
+  800 px) the levels between the first and the current folder collapse into a "…" button and
+  menu ("Folders in between"), and the row doesn't wrap, beside the floated Layout toggle
+- **upstream lines touched:** none. `scripts/sfx.ls`: `web/forkcrumbs.js`; `fork_grants.py`
+  adds it to upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` (last, after
+  `forknew.js`, `forkshare.js`, `forkrename.js`, `forkgrid.js`)
+- **fork files:** `copyparty/web/forkcrumbs.js`, `tests/test_fork_drive_crumbs.py`,
+  `tests/e2e/specs/foldermenu.spec.js`; one selector in `dragmove.js`; a `rename` icon in
+  `forkui.js`
+- **on conflict:** nothing to merge, but it leans on upstream names, each listed in
+  `tests/test_fork_drive_crumbs.py`: `reload_browser`'s `#path` rebuild, `#path`'s onclick,
+  treectl's inline `display` on `#path`, `#docname`, `fileman.render` / `#fshr`'s `hide`,
+  `#zip1`, the globals `perms`, `have_mv`, `have_zip`, `have_shr`, `in_shr`, `hist_replace`.
+  After an upstream merge, run `./scripts/fork-e2e.sh specs/foldermenu.spec.js specs/dragmove.spec.js`
+- **known gaps:** the jump-to-path a11y link (`.ayjump`, `#path a:nth-last-child(2)`) finds
+  nothing now (it was hidden already); a folder whose parent check is still loading shows no
+  Rename until it answers
 
 ## grants: fork-only folder sharing between accounts
 

@@ -94,7 +94,7 @@
 
         var t = null,
             tr = row_of(el),
-            a = el.closest('#treeul li>a+a') || el.closest('#path a[href]');
+            a = el.closest('#treeul li>a+a') || el.closest('#path a[href]:not([data-fk-view])');
 
         if (tr) {
             var it = row_item(tr);

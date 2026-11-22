@@ -284,3 +284,21 @@ found while building it:
   hundreds of files scrolls to the end, and taps `#bd_all` when it shows.
 - **The lightbox gives focus back to upstream's hidden tile** (`thegrid.onhide`); the wrap
   moves it to the card.
+
+## Drive-ux scripts: the breadcrumb and folder menu (forkcrumbs.js)
+
+`web/forkcrumbs.js` redoes upstream's `#path` after every `reload_browser` as a `nav` /
+`ol` inside it, moving upstream's own links in (so `#path`'s onclick and `dragmove.js` still
+work on them). A link of yours in the trail that isn't a folder gets `data-fk-view`, or
+`dragmove.js` takes it as a drop target. Traps found while building it:
+
+- **`#path, #path * {font-size: 1em}`** (an id selector) beats a class's `font`, so a
+  `forkui.menu` with a trigger inside `#path` (its popover is inserted after the trigger)
+  comes out at the h1's size. Use menus without a trigger (appended to `body`) and open them
+  from your own click handler.
+- **treectl writes `#path`'s `display` inline** (`inline-block` from `show()` even with the
+  tree off, `none` while hidden). To restyle it, override with `!important` but leave
+  `[style*="none"]` alone, and keep `html.fk-hassel` / `html.fk-inph` hiding it.
+- **A folder with no path on disk and no read (`/`, `/home/`) opens the control panel**, not
+  the file browser, so the breadcrumb never shows there. Its `?ls` answers with empty
+  `perms`, which is how the folder menu tells a volume's root (no Rename) from a subfolder.
