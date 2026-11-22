@@ -27,6 +27,14 @@ test('an account holder gets a top bar and a nav', async ({ page, loginAs, nav, 
     await expect(n.getByRole('link', { name: 'trip', exact: true })).toBeVisible();
 });
 
+test('upstream\'s bar under the list (control-panel, prev / up / next, π) is hidden', async ({ page, loginAs }) => {
+    await loginAs('alice');
+    await page.goto('/home/alice/proj/');
+    await expect(row(page, 'plan.txt')).toBeVisible();
+    await expect(page.locator('#wfp')).toBeHidden();
+    await expect(page.locator('#repl')).toBeHidden();
+});
+
 test('My files goes to the home folder, and the tree to a folder', async ({ page, loginAs, nav, press }) => {
     await loginAs('alice');
     await page.goto('/home/alice/proj/');

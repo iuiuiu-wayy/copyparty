@@ -449,7 +449,7 @@
             'html.fk,html.fk body{background:var(--fk-bg)}',
             'html.fk body{font-family:var(--fk-font)}',
             'html.fk #ops,html.fk #acc_info,html.fk #srv_info,html.fk #entree,html.fk #treeh,',
-            'html.fk #docul,html.fk #treepar{display:none!important}',
+            'html.fk #docul,html.fk #treepar,html.fk #wfp,html.fk #repl{display:none!important}',
             'html.fk #op_cfg div:has(>#themes){display:none}',
             'html.fk #op_cfg h3:has(+div>#themes){display:none}',
             '.fk-top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:8px;',
