@@ -79,7 +79,7 @@ class TestForkDriveMove(unittest.TestCase):
             self.assertLess(js.index("'%s'" % (dep,)), js.index("'forkmove.js'"), dep)
         self.assert_all(rd("copyparty", "web", "forklist.js"), (b"var A = ui.actions = ui.actions || {};",), "forklist.js")
         self.assert_all(rd("copyparty", "web", "forkviews.js"), (b"ui.views = { shared: shared",), "forkviews.js")
-        self.assert_all(rd("copyparty", "web", "forkshell.js"), (b"ui.shell.home = home;",), "forkshell.js")
+        self.assert_all(rd("copyparty", "web", "forkshell.js"), (b"ui.shell.home = guest ? null : home;",), "forkshell.js")
         self.assert_all(
             rd("copyparty", "web", "dragmove.js"),
             (b"clmod(hl, 'fmv-hl', 1);", b"img.className = 'fmv-img';", b"ptr == 'mouse' &&"),

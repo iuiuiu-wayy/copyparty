@@ -475,6 +475,8 @@
         nfshow(false, true);
         var opener = document.activeElement;
         dlg.open(opener && opener != document.body && opener.offsetParent ? opener : null);
+        // null once the server lists no home folder (forkshell.js), known only after load
+        home = ui.shell && ui.shell.home;
         // the current folder; in search results (items from anywhere) My files
         var start = ui.list.insrch() ? (home || get_evpath()) : get_evpath();
         // the trail names a shared folder once Shared with me is known
@@ -512,6 +514,7 @@
             'font:500 14px var(--fk-font);cursor:pointer}',
             '.fk-mv-root[aria-pressed=true]{background:var(--fk-active);border-color:var(--fk-active)}',
             '.fk-mv-root .fk-ico{width:20px;height:20px}',
+            '.fk-mv-root[hidden]{display:none}',
             '.fk-mv-trail{padding:4px 16px}',
             '.fk-mv-trail ol{display:flex;flex-wrap:wrap;align-items:center;margin:0;padding:0;list-style:none}',
             '.fk-mv-trail li{display:flex;align-items:center;min-width:0}',

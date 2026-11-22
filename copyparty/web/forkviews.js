@@ -53,7 +53,7 @@
             server = [],
             people = [],
             wait = 2,
-            home = plainpath(shell.home);
+            home = shell.home ? plainpath(shell.home) : null;
 
         getjson(SR + '/?grants=rcpts', function (j) {
             top = j && j.top ? '' + j.top : null;
@@ -85,7 +85,7 @@
             var p = plainpath(href);
             if (p == home)
                 return;
-            if (home.indexOf(p) !== 0)
+            if (!home || home.indexOf(p) !== 0)
                 return out.push({ name: p.slice(SR.length + 1).replace(/\/$/, ''), href: href });
             wait++;
             getjson(href + '?ls', function (j) {
@@ -217,8 +217,8 @@
     // where a folder is, as a person reads it: My files/trip, family/up
     function where(dir) {
         var p = plainpath(dir),
-            h = plainpath(shell.home);
-        if (p.indexOf(h) === 0)
+            h = shell.home ? plainpath(shell.home) : null;
+        if (h && p.indexOf(h) === 0)
             return ('My files/' + p.slice(h.length)).replace(/\/$/, '');
         return p.slice(SR.length + 1).replace(/\/$/, '') || '/';
     }

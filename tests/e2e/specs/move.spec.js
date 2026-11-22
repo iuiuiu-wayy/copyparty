@@ -224,3 +224,25 @@ test.describe('on a touch screen', () => {
         expect(w).toBeLessThanOrEqual(vp.width);
     });
 });
+
+test('an account the server lists no home folder for gets no My files, in the nav or Move to…', async ({ page, loginAs, nav, narrow, press, hasTouch, longPress, selbar }) => {
+    // as on a server with no /home volume: /home/ is not a folder
+    await page.route(/\/home\/\?ls$/, (r) => r.fulfill({ status: 404, body: 'no such folder' }));
+    await loginAs('alice');
+    await page.goto('/family/');
+    await expect(row(page, 'recipes.txt')).toBeVisible();
+
+    const n = await nav();
+    await expect(n.getByRole('link', { name: 'Shared with me' })).toBeVisible();
+    await expect(n.getByRole('link', { name: 'My files' })).toBeHidden();
+    if (narrow) {
+        await page.keyboard.press('Escape');
+        await expect(n).toBeHidden();
+    }
+
+    await pick(page, hasTouch, longPress, ['recipes.txt']);
+    await press(selbar.getByRole('button', { name: 'Move to…' }));
+    await expect(dlg(page)).toBeVisible();
+    await expect(place(page, 'Shared with me')).toBeVisible();
+    await expect(place(page, 'My files')).toBeHidden();
+});

@@ -275,8 +275,9 @@
     ui.shell.entry = function (id) { return ents[id] && ents[id].firstChild; };
     // the view showing ('' = a folder)
     ui.shell.view = function () { return view; };
-    // the account's home folder (My files), SR-prefixed, URL-quoted
-    ui.shell.home = home;
+    // the account's home folder (My files), SR-prefixed, URL-quoted; null once the server
+    // lists none (read it when needed: it starts as /home/<name>/ until /home/?ls answers)
+    ui.shell.home = guest ? null : home;
 
     function showview(v) {
         if (guest)
@@ -411,23 +412,28 @@
     // lands); and / itself lands there when / is a folder this account can open
     var xhr = new XMLHttpRequest();
     xhr.open('GET', SR + '/home/?ls', true);
+    function nohome() {
+        hasHome = false;
+        ui.shell.home = null;
+        if (brand.tagName == 'A')
+            brand.setAttribute('href', SR + '/');
+        syncnav();
+    }
     xhr.onload = function () {
-        if (this.status != 200)
-            return;
-        var dirs = [];
+        var dirs = null;
         try {
-            dirs = JSON.parse(this.responseText).dirs || [];
+            dirs = this.status == 200 && JSON.parse(this.responseText).dirs;
         }
-        catch (e) {
-            return;
-        }
-        hasHome = dirs.some(function (d) {
+        catch (e) { }
+        if (!dirs || !dirs.some(function (d) {
             return d.href.split('?')[0].replace(/\/$/, '') == encodeURIComponent(acct);
-        });
-        if (hasHome && get_evpath() == SR + '/' && !location.search)
+        }))
+            return nohome();
+        if (get_evpath() == SR + '/' && !location.search)
             return location.replace(home);
         syncnav();
     };
+    xhr.onerror = nohome;
     xhr.send();
 
     ui.style(css());
