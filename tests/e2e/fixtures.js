@@ -33,16 +33,16 @@ const test = base.test.extend({
     }, { auto: true }],
 
     // what the page sends that reloads the server's config takes turns with every other
-    // such request, as the API calls do (server.js, serialReload)
+    // such request, as the API calls do (server.js, serialReload). The page gets its answer
+    // once the reload settled and the turn is over: answered before, the scenario could end
+    // (and its worker exit) mid-turn, leaving every other worker waiting on the lock
     context: async ({ context }, use) => {
         await context.route((u) => reloads('POST', u.search), async (route) => {
             const r = route.request();
             if (r.method() !== 'POST')
                 return route.fallback();
-            await serialReload(process.env.E2E_BASE, async () => {
-                const resp = await route.fetch().catch(() => null);
-                return (resp ? route.fulfill({ response: resp }) : route.abort()).catch(() => {});
-            });
+            const resp = await serialReload(process.env.E2E_BASE, () => route.fetch().catch(() => null));
+            await (resp ? route.fulfill({ response: resp }) : route.abort()).catch(() => {});
         });
         await use(context);
     },

@@ -203,12 +203,20 @@ function reloads(method, url) {
     return /[?&]reload=/.test(url) || (method === 'POST' && /[?&](share|eshare|grant|egrant)(=|&|$)/.test(url));
 }
 
+// a worker that exits mid-turn gives the turn up (the lock it holds, if any)
+let holding = null;
+process.on('exit', () => {
+    if (holding)
+        fs.rmSync(holding, { recursive: true, force: true });
+});
+
 // one reload at a time: a lock dir next to the server's temp files (E2E_LOCK, from start)
 async function serialReload(base, fn) {
     const lock = process.env.E2E_LOCK;
     for (let t0 = Date.now(); ; await sleep(50)) {
         try {
             fs.mkdirSync(lock);
+            holding = lock;
             break;
         } catch (e) {
             if (e.code !== 'EEXIST')
@@ -223,6 +231,7 @@ async function serialReload(base, fn) {
         await settled(base);
         return ret;
     } finally {
+        holding = null;
         fs.rmSync(lock, { recursive: true, force: true });
     }
 }
