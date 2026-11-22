@@ -148,6 +148,9 @@
 
     document.addEventListener('pointerdown', function (e) {
         ptype = e.pointerType || 'mouse';
+        // a new touch: the long-press ended without a click (Firefox, iOS), so this tap is
+        // not that click and must not be swallowed
+        eatUntil = 0;
     }, true);
 
     // the click that ends a long-press, also when the rows moved away from under the finger
@@ -504,7 +507,9 @@
     function busy() {
         return (window.modal && modal.busy) || QS('dialog[open]') || QS('.fk-menu:popover-open') ||
             QS('#bbox-overlay.visible') || ebi('rui') || ebi('shui') ||
-            (window.showfile && showfile.active());
+            (window.showfile && showfile.active()) ||
+            // a part of another script that handles its own keys (forkdetails.js)
+            QS('[data-fk-keys]:focus-within');
     }
 
     window.addEventListener('keydown', function (e) {

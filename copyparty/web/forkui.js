@@ -24,6 +24,8 @@
 
     // 24x24 outline paths, drawn for this fork (no third-party icon set)
     var ICONS = {
+        // the Details panel (forkdetails.js)
+        'info': 'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18zM12 11v5.5M12 7.5v.01',
         // viewers and the audio player (forkview.js)
         'left': 'M15 5l-7 7l7 7',
         'right': 'M9 5l7 7l-7 7',
@@ -222,7 +224,11 @@
         }, 800);
     }
 
+    // presses so far: a menu's light dismiss holds off only the click of the press that did it
+    var npress = 0;
+
     document.addEventListener('pointerdown', function (e) {
+        npress++;
         var ms = document.querySelectorAll('.fk-menu');
         for (var a = 0; a < ms.length; a++)
             if (ms[a].matches(':popover-open') && !ms[a].contains(e.target) &&
@@ -274,6 +280,7 @@
             }),
             enter = false,
             shut = 0,
+            shutAt = 0,     // npress at that light dismiss
             ours = false;
 
         if (trigger) {
@@ -354,6 +361,12 @@
             }
         }
 
+        // when a light dismiss closed it, or 0 once a new press has begun since (a fresh tap
+        // on the trigger right after a tap outside opens it again)
+        function lit() {
+            return npress == shutAt ? shut : 0;
+        }
+
         function isOpen() {
             return m.matches(':popover-open');
         }
@@ -374,8 +387,10 @@
             }
             // only a light dismiss (its pointerdown may be on the trigger) holds a click off;
             // closed by a pick, Esc or the trigger, the next click opens it again at once
-            if (!ours)
+            if (!ours) {
                 shut = Date.now();
+                shutAt = npress;
+            }
             ours = false;
             m.style.translate = '';
             // light dismiss or Esc: focus goes back to the trigger unless it went elsewhere
@@ -464,7 +479,7 @@
             trigger.addEventListener('click', function (e) {
                 e.preventDefault();
                 // the pointerdown that light-dismissed it lands here as a click: stay closed
-                if (isOpen() || Date.now() - shut < 300)
+                if (isOpen() || Date.now() - lit() < 300)
                     return close();
                 open(e.detail === 0);
             });
@@ -483,7 +498,7 @@
         return {
             el: m, open: open, close: close, isOpen: isOpen,
             from: function () { return cur; },
-            shut: function () { return shut; }
+            shut: lit
         };
     }
 
