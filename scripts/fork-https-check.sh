@@ -184,7 +184,8 @@ mkshare $k_pw '["read"]' "$pw_share"
 fails=0
 pass() { echo "PASS  $1"; }
 fail() {
-    echo "FAIL  $1${2:+  ($2)}"
+    local why=${2:-}
+    echo "FAIL  $1${why:+  (${why//$'\n'/ })}" # one line per rule, even with a body in the reason
     fails=$((fails + 1))
 }
 
@@ -394,6 +395,94 @@ for h in 127.0.0.1 unknown.example; do
         fail "Outside: with $h as Host and SNI, / gives a bare 404 and a share link opens" "/ gave $got; share: ${body:0:60}"
     fi
 done
+
+# 8. Outside, a guest gets everything a share link gives
+ua='Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0' # copyparty sends HTML to browsers
+# every static file and share-link URL the page in $tmp/body refers to loads: assets_load SRC
+# (not "/share/" itself, the breadcrumb's root, which copyparty refuses to everyone)
+assets_load() {
+    local src=$1 u code bad=
+    for u in $(grep -oE '(href|src)="/(\.cpr|share)/[^"]+"' "$tmp/body" | sed -E 's/^[a-z]+="//; s/"$//; s/&amp;/\&/g' | sort -u); do
+        code=$(req $src -A "$ua" -o /dev/null -w '%{http_code}' "$https$u")
+        [ "$code" = 200 ] || bad="$bad $u:$code"
+    done
+    [ -z "$bad" ] || {
+        echo "$bad"
+        return 1
+    }
+}
+got=$(answer $outside -A "$ua" "$https/share/$k_open/")
+if [ "$got" = "200 copyparty" ] && grep -qF '/.cpr/' "$tmp/body" && bad=$(assets_load $outside); then
+    pass "Outside: a share link opens, with its styles, scripts and icons"
+else
+    fail "Outside: a share link opens, with its styles, scripts and icons" "page: $got; failed:${bad:-}"
+fi
+
+# a share link behind a password: the prompt, then the right password unlocks it, a wrong one doesn't
+got=$(answer $outside -A "$ua" "$https/share/$k_pw/")
+if [ "$got" = "403 copyparty" ] && grep -qF 'name="cppwd"' "$tmp/body" && bad=$(assets_load $outside); then
+    pass "Outside: a share link with a password shows its prompt"
+else
+    fail "Outside: a share link with a password shows its prompt" "page: $got; failed:${bad:-}"
+fi
+unlock() { # SRC PASSWORD: log in to the share link, then fetch a file from it with that cookie
+    rm -f "$tmp/sjar"
+    req $1 -A "$ua" -o /dev/null -c "$tmp/sjar" --form-string act=login --form-string "cppwd=$2" \
+        --form-string uhash=x "$https/share/$k_pw/"
+    req $1 -A "$ua" -o /dev/null -w '%{http_code}' -b "$tmp/sjar" "$https/share/$k_pw/hello.txt"
+}
+right=$(unlock $outside "$pw_share")
+wrong=$(unlock $outside wrong-share-pw)
+wrong_in=$(unlock $inside wrong-share-pw)
+if [ "$right" = 200 ] && [ "$wrong" = 403 ] && [ "$wrong_in" = "$wrong" ]; then
+    pass "Outside: the right share password unlocks it, a wrong one is refused as Inside"
+else
+    fail "Outside: the right share password unlocks it, a wrong one is refused as Inside" \
+        "right: $right, wrong: $wrong, wrong Inside: $wrong_in"
+fi
+
+# downloads (a single file is rule 1): the folder as zip and tar, a thumbnail
+got=$(req $outside -o "$tmp/dl.zip" -w '%{http_code} %{content_type}' "$https/share/$k_open/?zip")
+if [ "${got%% *}" = 200 ] && "$py" -I -c 'import sys, zipfile; n = zipfile.ZipFile(sys.argv[1]).namelist(); sys.exit(not any(x.endswith("/hello.txt") for x in n))' "$tmp/dl.zip"; then
+    pass "Outside: a share link's folder downloads as a zip"
+else
+    fail "Outside: a share link's folder downloads as a zip" "got: $got"
+fi
+got=$(req $outside "$https/share/$k_open/?tar" | tar -tf - 2>/dev/null | grep -c 'hello.txt$')
+if [ "$got" = 1 ]; then
+    pass "Outside: a share link's folder downloads as a tar"
+else
+    fail "Outside: a share link's folder downloads as a tar" "hello.txt found $got times"
+fi
+got=$(req $outside -A "$ua" -o /dev/null -w '%{http_code} %{content_type}' "$https/share/$k_open/red.png?th=j")
+case $got in
+"200 image/"*) pass "Outside: a share link's thumbnails load" ;;
+*) fail "Outside: a share link's thumbnails load" "got: $got" ;;
+esac
+
+# a guest's upload into the share link (a new file: copyparty would skip the known one's chunks)
+head -c $((3 * 1024 * 1024 + 321)) /dev/urandom >"$tmp/guest.bin"
+want_g=$(sha256sum <"$tmp/guest.bin" | cut -d' ' -f1)
+got=$(up2k $outside "/share/$k_open/" "$tmp/guest.bin" guest.bin 2>&1)
+back=$(req $outside "$https/share/$k_open/guest.bin" | sha256sum | cut -d' ' -f1)
+if [ "$got" = ok ] && [ "$back" = "$want_g" ]; then
+    pass "Outside: a guest's 3 MiB up2k upload into a share link goes through"
+else
+    fail "Outside: a guest's 3 MiB up2k upload into a share link goes through" "${got:0:200}"
+fi
+
+# a wrong key gets copyparty's dead-link answer, the same Outside as Inside (the CSP nonce aside)
+deadlink() {
+    answer $1 -A "$ua" "$https/share/nosuchkey1234/"
+    grep -vi nonce "$tmp/body" >"$tmp/dead-$1"
+}
+out=$(deadlink $outside)
+ins=$(deadlink $inside)
+if [ "$out" = "403 copyparty" ] && [ "$ins" = "$out" ] && cmp -s "$tmp/dead-$outside" "$tmp/dead-$inside"; then
+    pass "Outside: a wrong share key gets copyparty's dead-link answer, as Inside"
+else
+    fail "Outside: a wrong share key gets copyparty's dead-link answer, as Inside" "Outside: $out, Inside: $ins"
+fi
 
 # 6. no HTTP/2 (ALPN offers http/1.1 only) and no nginx version anywhere
 alpn=$(openssl s_client -connect "127.0.0.1:$p_https" -servername "$domain" -alpn h2,http/1.1 \
