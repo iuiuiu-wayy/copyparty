@@ -22,6 +22,9 @@ outside=127.0.0.1
 outside2=127.0.0.3     # 127.0.0.1 is also nginx's own address; this one is not
 pw=check-pw-user
 pw_admin=check-pw-admin
+k_open=checkopen1234 # share link keys, 12+ characters like the web UI's
+k_pw=checklocked12
+pw_share=check-pw-share
 
 die() {
     echo "fork-https-check: $*" >&2
@@ -63,6 +66,17 @@ print(" ".join(str(s.getsockname()[1]) for s in ss))
 # --- copyparty -------------------------------------------------------------------------------
 mkdir -p "$tmp/srv/vol" "$tmp/srv/home/check-user" "$tmp/db" "$tmp/xdg"
 echo "hello from copyparty" >"$tmp/srv/vol/hello.txt"
+echo "home of check-user" >"$tmp/srv/home/check-user/mine.txt"
+# a 64x64 red PNG, so a share link has something to thumbnail
+"$py" -I - "$tmp/srv/vol/red.png" <<'EOF'
+import struct, sys, zlib
+def chunk(t, d):
+    return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
+raw = b"".join(b"\x00" + b"\xff\x00\x00" * 64 for _ in range(64))
+ihdr = struct.pack(">IIBBBBB", 64, 64, 8, 2, 0, 0, 0)
+sig = b"\x89PNG\r\n\x1a\n"
+open(sys.argv[1], "wb").write(sig + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+EOF
 cat >"$tmp/copyparty.conf" <<EOF
 [global]
   i: 127.0.0.1
@@ -154,6 +168,18 @@ waitfor copyparty 'kill -0 $cpp_pid 2>/dev/null' curl -s -o /dev/null "http://12
 waitfor nginx '[ "$(docker inspect -f "{{.State.Running}}" "$cname" 2>/dev/null)" = true ]' \
     curl -sk -o /dev/null --resolve "$domain:$p_https:127.0.0.1" "https://$domain:$p_https/"
 
+# two share links of /vol/, made straight on copyparty (setup, not under test): an open one
+# that also takes uploads, and one behind a password
+mkshare() { # KEY PERMS-JSON PASSWORD
+    local got
+    got=$(curl -s --max-time 30 -u "check-user:$pw" -H 'Content-Type: application/json' \
+        "http://127.0.0.1:$p_cpp/vol/?share" \
+        -d '{"k":"'"$1"'","vp":["/vol/"],"pw":"'"$3"'","exp":"","perms":'"$2"'}')
+    case $got in "created share: "*) ;; *) die "could not make share link $1: ${got:0:200}" ;; esac
+}
+mkshare $k_open '["read","write","get"]' ""
+mkshare $k_pw '["read"]' "$pw_share"
+
 # --- the rules -------------------------------------------------------------------------------
 fails=0
 pass() { echo "PASS  $1"; }
@@ -190,9 +216,10 @@ logged_ip() {
 }
 
 # an up2k upload through nginx from a source address, all chunks stitched into one POST like
-# copyparty's own clients do: up2k SRC DIR-URL FILE NAME; prints "ok" or what went wrong
+# copyparty's own clients do: up2k SRC DIR-URL FILE NAME [PASSWORD of check-user; none for a
+# guest]; prints "ok" or what went wrong
 up2k() {
-    "$py" -I - "$1" "$p_https" "$domain" "$2" "$3" "$4" "$pw" <<'EOF'
+    "$py" -I - "$1" "$p_https" "$domain" "$2" "$3" "$4" "${5:-}" <<'EOF'
 import base64, hashlib, http.client, json, os, ssl, sys
 
 src, port, host, url, fn, name, pw = sys.argv[1:]
@@ -208,8 +235,10 @@ for ofs in range(0, size, csz):
 def req(method, url, body, hdrs):
     ctx = ssl._create_unverified_context()
     c = http.client.HTTPSConnection("127.0.0.1", int(port), source_address=(src, 0), context=ctx, timeout=60)
-    auth = "Basic " + base64.b64encode(("check-user:" + pw).encode("utf-8")).decode("ascii")
-    hdrs = dict(hdrs, Host="%s:%s" % (host, port), Authorization=auth)
+    hdrs = dict(hdrs, Host="%s:%s" % (host, port))
+    if pw:
+        zs = base64.b64encode(("check-user:" + pw).encode("utf-8")).decode("ascii")
+        hdrs["Authorization"] = "Basic " + zs
     c.request(method, url, body, hdrs)
     r = c.getresponse()
     return r.status, r.read().decode("utf-8", "replace")
@@ -234,12 +263,13 @@ print("ok")
 EOF
 }
 
-# 1. HTTPS on the domain reaches copyparty
-body=$(req $outside "$https/vol/hello.txt" -u "check-user:$pw")
-if [ "$body" = "hello from copyparty" ]; then
+# 1. HTTPS on the domain reaches copyparty (Inside: a volume; Outside: a share link)
+body=$(req $inside "$https/vol/hello.txt" -u "check-user:$pw")
+body2=$(req $outside "$https/share/$k_open/hello.txt")
+if [ "$body" = "hello from copyparty" ] && [ "$body2" = "hello from copyparty" ]; then
     pass "HTTPS on the domain reaches copyparty"
 else
-    fail "HTTPS on the domain reaches copyparty" "got: ${body:0:80}"
+    fail "HTTPS on the domain reaches copyparty" "got: ${body:0:80} / ${body2:0:80}"
 fi
 
 # 2. port 80 only redirects to HTTPS, keeping the path
@@ -253,7 +283,11 @@ fi
 # 3. copyparty sees each client's real address, never nginx's own
 for src in $outside $outside2 $inside; do
     marker
-    req $src -o /dev/null "$https/vol/?$m" -u "check-user:$pw"
+    if [ $src = $inside ]; then
+        req $src -o /dev/null "$https/vol/?$m" -u "check-user:$pw"
+    else
+        req $src -o /dev/null "$https/share/$k_open/?$m"
+    fi
     got=$(logged_ip "$m")
     if [ "$got" = "$src" ]; then
         pass "copyparty logs the real client address ($src)"
@@ -264,7 +298,7 @@ done
 
 # 4. a forged X-Forwarded-For (here: posing as Inside) changes nothing; the real address is logged
 marker
-req $outside2 -o /dev/null "$https/vol/?$m" -u "check-user:$pw" -H "X-Forwarded-For: $inside"
+req $outside2 -o /dev/null "$https/share/$k_open/?$m" -H "X-Forwarded-For: $inside"
 got=$(logged_ip "$m")
 if [ "$got" = "$outside2" ]; then
     pass "a forged X-Forwarded-For is ignored"
@@ -272,26 +306,53 @@ else
     fail "a forged X-Forwarded-For is ignored" "logged: ${got:-nothing}"
 fi
 
-# 5. uploads bigger than nginx's default body limit (1 MiB) and than one up2k chunk (1 MiB here)
+# 5. uploads bigger than nginx's default body limit (1 MiB) and than one up2k chunk (1 MiB here),
+# by an account holder Inside
 head -c $((3 * 1024 * 1024 + 123)) /dev/urandom >"$tmp/big.bin"
 want=$(sha256sum <"$tmp/big.bin" | cut -d' ' -f1)
 roundtrip() { # name: download it back through nginx and compare
     local got
-    got=$(req $outside "$https/vol/$1" -u "check-user:$pw" | sha256sum | cut -d' ' -f1)
+    got=$(req $inside "$https/vol/$1" -u "check-user:$pw" | sha256sum | cut -d' ' -f1)
     [ "$got" = "$want" ]
 }
-code=$(req $outside -o /dev/null -w '%{http_code}' -T "$tmp/big.bin" -u "check-user:$pw" "$https/vol/put.bin")
+code=$(req $inside -o /dev/null -w '%{http_code}' -T "$tmp/big.bin" -u "check-user:$pw" "$https/vol/put.bin")
 if [ "$code" = 201 ] && roundtrip put.bin; then
-    pass "a 3 MiB PUT upload goes through"
+    pass "Inside: a 3 MiB PUT upload goes through"
 else
-    fail "a 3 MiB PUT upload goes through" "status $code"
+    fail "Inside: a 3 MiB PUT upload goes through" "status $code"
 fi
-got=$(up2k $outside /vol/ "$tmp/big.bin" up2k.bin 2>&1)
+got=$(up2k $inside /vol/ "$tmp/big.bin" up2k.bin "$pw" 2>&1)
 if [ "$got" = ok ] && roundtrip up2k.bin; then
-    pass "a 3 MiB up2k upload (4 chunks, one POST) goes through"
+    pass "Inside: a 3 MiB up2k upload (4 chunks, one POST) goes through"
 else
-    fail "a 3 MiB up2k upload (4 chunks, one POST) goes through" "${got:0:200}"
+    fail "Inside: a 3 MiB up2k upload (4 chunks, one POST) goes through" "${got:0:200}"
 fi
+
+# who answered, and how: answer SRC [curl args...] prints the status and "nginx" for nginx's own
+# error page or "copyparty" for anything else; the body is left in $tmp/body
+answer() {
+    local code
+    code=$(req "$@" -o "$tmp/body" -w '%{http_code}')
+    if grep -qF '<center>nginx</center>' "$tmp/body" && ! grep -qi copyparty "$tmp/body"; then
+        echo "$code nginx"
+    else
+        echo "$code copyparty"
+    fi
+}
+# a rule that a request gets nginx's bare 404: bare404 NAME SRC [curl args...]
+bare404() {
+    local name=$1 got
+    shift
+    got=$(answer "$@")
+    if [ "$got" = "404 nginx" ]; then
+        pass "$name"
+    else
+        fail "$name" "got: $got"
+    fi
+}
+
+# 7. Outside reaches nothing but share links and static files: a bare 404 from nginx
+bare404 "Outside: / gives a bare 404" $outside "$https/"
 
 # 6. no HTTP/2 (ALPN offers http/1.1 only) and no nginx version anywhere
 alpn=$(openssl s_client -connect "127.0.0.1:$p_https" -servername "$domain" -alpn h2,http/1.1 \
@@ -303,7 +364,7 @@ else
 fi
 ver=$(docker exec "$cname" nginx -v 2>&1 | sed 's/.*nginx\///')
 leak=
-for u in "$https/vol/hello.txt" "$http/" "$https/.well-known/nonexistent"; do
+for u in "$https/vol/hello.txt" "$https/share/$k_open/hello.txt" "$http/" "$https/.well-known/nonexistent"; do
     if req $outside -i "$u" | grep -qF "$ver"; then
         leak="$leak $u"
     fi
