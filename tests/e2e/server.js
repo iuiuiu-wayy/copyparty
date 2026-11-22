@@ -77,6 +77,9 @@ const SEED = {
     'home/carol/search2/beach.jpg': 'jpg\n',
     'home/carol/other/beach.jpg': 'jpg\n',
     'attic/beach.txt': 'not indexed\n',
+    // a folder name holding a LIKE wildcard (_), and one it would match
+    'home/carol/snap_1/beach.jpg': 'jpg\n',
+    'home/carol/snapx1/beach.jpg': 'jpg\n',
     // the viewer and player scenarios (specs/viewers.spec.js); only read
     'home/carol/media/blue.png': media('blue.png'),
     'home/carol/media/orange.png': media('orange.png'),

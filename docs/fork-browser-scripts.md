@@ -177,7 +177,9 @@ handler, so upstream's search posts it and renders the hits. Traps found while b
 
 - **Upstream searches every readable volume**, not the folder you're in. "Under this folder"
   is a `path` term, and the form's path field only says "starts with" (`^home/a/trip` also
-  matches `home/a/trip2/`); use `( path like p or path like p/* )` in the raw query.
+  matches `home/a/trip2/`). `path like` is no fix either: SQLite's LIKE takes `_` and `%` in
+  a folder name as wildcards and ignores ASCII case. Use exact compares in the raw query:
+  `( path = p or ( path > p/ and path < p0 ) )` (`0` sorts right after `/`).
 - **Typing in upstream's form fields searches on a timer** (and a second time 2 s later when
   a search was already running). Setting a field and firing its `oninput` to get the query
   encoded can send duplicate searches; `#q_raw`'s Enter runs exactly one.

@@ -55,6 +55,14 @@ test('a name search lists the matches under this folder only', async ({ page }) 
     await expect(page.getByRole('status').filter({ hasText: 'No results' })).toBeAttached();
 });
 
+test('a folder whose name holds _ searches that folder alone', async ({ page }) => {
+    // snapx1/ next to it has a beach.jpg too (server.js)
+    await page.goto('/home/carol/snap_1/');
+    await expect(row(page, 'beach.jpg')).toBeVisible();
+    await search(page, 'beach');
+    await expectHits(page, ['/home/carol/snap_1/beach.jpg']);
+});
+
 test('typing searches without Enter', async ({ page }) => {
     await box(page).fill('sunset');
     await expectHits(page, ['beach-sunset.png']);

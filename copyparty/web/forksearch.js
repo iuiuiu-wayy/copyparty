@@ -124,8 +124,10 @@
             t = find(TYPES, st.type),
             r = range();
 
+        // the folder and everything under it: exact compares, since LIKE would take a _ or %
+        // in a folder name as a wildcard and ignore ASCII case ('0' sorts right after '/')
         if (p)
-            parts.push('( path like ' + qv(p) + ' or path like ' + qv(p + '/*') + ' )');
+            parts.push('( path = ' + qv(p) + ' or ( path > ' + qv(p + '/') + ' and path < ' + qv(p + '0') + ' ) )');
         for (var a = 0; a < words.length; a++)
             if (words[a])
                 parts.push(nameterm(words[a]));
