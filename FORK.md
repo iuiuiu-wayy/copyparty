@@ -548,6 +548,25 @@ every place this fork changes an upstream file, one section each below. On a mer
   that isn't media to download it. Upstream's `run-tests.sh` copies `tests/` into `./unt`,
   `tests/e2e/node_modules` (~18 MB) too, if it is installed; harmless. After an upstream merge,
   run `./scripts/fork-e2e.sh`
+- **upstream bugs it works around (not patched; seen in v1.20.26 without fork code):** both
+  leave up2k refusing every upload until a restart (HTTP 503 "server busy with fs-reload"; the
+  browser retries for ever and the upload card stays on "Uploading N items"):
+  1. *two reloads close together.* `AuthSrv._reload` sets `self.vfs` before it drops the
+     share link volumes from `vfs.all_vols`; those have no `dbd` volflag. up2k reinitialising
+     after an earlier reload reads `all_vols` in that window, its rescan thread dies with
+     `KeyError: 'dbd'` (`init_indexes`) and `reloading` never clears. Every reload that
+     reinitialises up2k counts: a share link or grant made or ended, `?reload=cfg`, SIGUSR1 (a
+     password change does not). Repro: a server with `--shr` and one link, then 20
+     `?reload=cfg` 5 ms apart; about one burst in six
+     sticks. The harness lets one reload happen at a time and waits until up2k takes an upload
+     again (`server.js` `serialReload`; the page's own requests too, `fixtures.js` `context`)
+  2. *a reload as startup indexing begins.* With fast boot (the default) `deferred_init` can
+     lose its `gid` to the reload's rescan and return before setting `have_e2d`, so the
+     up2k-rescan thread never starts and the next reload's flag is never handled. The harness
+     runs with `no-fastboot`, which indexes before listening
+- **left-behind folders:** each scenario's folder of alice's (`scratch()` in `fixtures.js`) is
+  deleted when it ends; left behind, a run's folders pushed alice's seeded files past
+  upstream's first 250 rows and bob's seeded upload off `?ru`'s 1000 newest
 
 
 ### upstream edit: drive-ux frame (forkui.js, forkshell.js)

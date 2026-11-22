@@ -3,7 +3,7 @@
 // the Share dialog's General access part: share links made, listed, copied and removed from
 // the selection bar and the row menu; the server's refusals shown; guests see none of it
 
-const { test, expect, row } = require('../fixtures.js');
+const { test, expect, row, scratch } = require('../fixtures.js');
 const { session } = require('../server.js');
 
 const dialog = (page) => page.getByRole('dialog');
@@ -12,7 +12,7 @@ const links = (page) => dialog(page).getByRole('list', { name: 'Links' }).getByR
 
 // a folder of its own per size, since the sizes run in parallel
 async function mkdir(put, info, what, files) {
-    const dir = `/home/alice/${what}-${info.project.name}/`;
+    const dir = scratch(info, what);
     await Promise.all(files.map((f) => put('alice', dir + f, f + '\n')));
     return dir;
 }

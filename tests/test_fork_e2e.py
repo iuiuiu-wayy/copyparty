@@ -47,8 +47,15 @@ class TestE2eHarness(unittest.TestCase):
             b'"href": "%s/" % (x,),',
             b'"dirs": dirs,',
             b"def handle_put(self)",
+            b"def handle_delete(self)",
         ):
             self.assertTrue(zb in py, zb)
+
+        # server.js waits after each reload until an upload handshake is no longer
+        # refused with 503 while up2k reinitialises (serialReload, settled); scratch
+        # folders go with DELETE (above)
+        up = _read(CPP, "up2k.py")
+        self.assertTrue(b'raise Pebkac(503, SBUSY % ("fs-reload",))' in up)
 
     def test_harness_has_one_exactly_pinned_dependency(self):
         pkg = json.loads(_read(E2E, "package.json").decode("utf-8"))

@@ -54,7 +54,9 @@ module.exports = defineConfig({
     forbidOnly: true,
     reporter: [['list']],
     timeout: 30000,
-    expect: { timeout: 5000 },
+    // 10 s, not 5: a request that reloads the server (a share link, a grant) waits its turn
+    // behind the other workers' (server.js, serialReload), ~0.7 s each
+    expect: { timeout: 10000 },
     use: { trace: 'retain-on-failure' },
     projects,
 });

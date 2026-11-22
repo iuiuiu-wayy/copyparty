@@ -4,7 +4,7 @@
 // compact tiles, then file cards with lazy thumbnails and a ⋮ each), remembered per
 // browser; selecting, the selection bar, the row menu and opening work as in the list
 
-const { test, expect, row } = require('../fixtures.js');
+const { test, expect, row, scratch } = require('../fixtures.js');
 const { session } = require('../server.js');
 
 const layout = (page) => page.getByRole('group', { name: 'Layout' });
@@ -28,7 +28,7 @@ function png(i) {
 // a folder of its own per size and scenario (the sizes run in parallel): a subfolder and
 // some files, put with one session
 async function mkdir(server, info, what, files, dirs) {
-    const dir = `/home/alice/${what}-${info.project.name}/`;
+    const dir = scratch(info, what);
     const s = await session(server.url, 'alice');
     const all = files.concat((dirs || []).map((d) => d + '/x.txt'));
     for (let i = 0; i < all.length; i += 20)

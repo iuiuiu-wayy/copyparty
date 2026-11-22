@@ -3,9 +3,50 @@
 'use strict';
 
 const base = require('playwright/test');
-const { ACCOUNTS, LOGOUT_USERS, session } = require('./server.js');
+const { ACCOUNTS, LOGOUT_USERS, session, reloads, serialReload } = require('./server.js');
+
+// the folders of alice's that scratch() handed out to the scenario running in this worker
+const scratched = [];
+
+// a folder of alice's of its own for one scenario and size (the sizes run in parallel),
+// deleted when the scenario ends: left behind, one run's folders and uploads push alice's
+// seeded files past upstream's first 250 rows and bob's seeded upload off ?ru's 1000
+function scratch(info, what) {
+    const dir = `/home/alice/${what}-${info.project.name}/`;
+    scratched.push(dir);
+    return dir;
+}
 
 const test = base.test.extend({
+    // after each scenario, delete its scratch() folders (gone already when it renamed one)
+    scratchCleanup: [async ({ server }, use) => {
+        scratched.length = 0;
+        await use();
+        if (!scratched.length)
+            return;
+        const s = await session(server.url, 'alice');
+        for (const dir of scratched.splice(0)) {
+            const r = await s.del(dir);
+            if (r.status !== 200 && r.status !== 404)
+                throw new Error(`DELETE ${dir} as alice: ${r.status} ${await r.text()}`);
+        }
+    }, { auto: true }],
+
+    // what the page sends that reloads the server's config takes turns with every other
+    // such request, as the API calls do (server.js, serialReload)
+    context: async ({ context }, use) => {
+        await context.route((u) => reloads('POST', u.search), async (route) => {
+            const r = route.request();
+            if (r.method() !== 'POST')
+                return route.fallback();
+            await serialReload(process.env.E2E_BASE, async () => {
+                const resp = await route.fetch().catch(() => null);
+                return (resp ? route.fulfill({ response: resp }) : route.abort()).catch(() => {});
+            });
+        });
+        await use(context);
+    },
+
     // fail fast when a script error crashes the page (upstream's crash box, #exbox, covers
     // it): close the page so the step waiting on it fails now, not at its timeout, then fail
     // the test with the error. Errors upstream lets pass (a rejected promise, a fetch cut off
@@ -178,4 +219,4 @@ function row(page, name) {
         .filter({ has: page.getByRole('link', { name, exact: true }) });
 }
 
-module.exports = { test, expect: base.expect, row };
+module.exports = { test, expect: base.expect, row, scratch };

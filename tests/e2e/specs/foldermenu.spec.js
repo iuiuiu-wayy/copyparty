@@ -5,7 +5,7 @@
 // allowed; earlier parts navigate and take a drag-to-move drop; on a phone the parts between
 // the first and the current folder collapse into a "…" menu, so the trail fits on one line
 
-const { test, expect, row } = require('../fixtures.js');
+const { test, expect, row, scratch } = require('../fixtures.js');
 
 const crumbs = (page) => page.getByRole('navigation', { name: 'Breadcrumbs' });
 const current = (page) => crumbs(page).locator('[aria-current=page]');
@@ -14,7 +14,7 @@ const parts = (page) => crumbs(page).getByRole('listitem');
 
 // a folder tree of its own per size and browser, since they run in parallel
 async function tree(put, info, what, files) {
-    const dir = `/home/alice/${what}-${info.project.name}/`;
+    const dir = scratch(info, what);
     for (const f of files)
         await put('alice', dir + f, f + '\n');
     return dir;

@@ -114,6 +114,10 @@ function conf(tmp, port, lab) {
   js-browser: /.cpr/w/fork-browser.js
   js-other: /.cpr/w/ctlpanel.js
   wram
+  # not in the tested config: upstream's up2k can refuse every upload for good ("server
+  # busy with fs-reload") when a config reload lands as its startup indexing begins, and
+  # the setup below reloads at once; indexing before listening keeps reloads after it
+  no-fastboot
   hist: ${d('hist')}
   shr-db: ${d('db/shares.db')}
   grants-db: ${d('db/grants.db')}
@@ -188,6 +192,60 @@ function freePort() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Requests that reload the server's config: making or ending a share link or a grant, and
+// ?reload=cfg. Upstream publishes a reloaded config before it is final (share link volumes
+// with no "dbd" volflag yet); up2k reinitialising after an earlier reload can read it then,
+// and its rescan thread dies with KeyError 'dbd' and leaves up2k refusing every upload for
+// good ("server busy with fs-reload"; upstream v1.20.26 alone shows it, see FORK.md). Two
+// reloads close together are enough, and the scenarios make many at once; so they take
+// turns, across every worker, each waiting for up2k to finish its reinit.
+function reloads(method, url) {
+    return /[?&]reload=/.test(url) || (method === 'POST' && /[?&](share|eshare|grant|egrant)(=|&|$)/.test(url));
+}
+
+// one reload at a time: a lock dir next to the server's temp files (E2E_LOCK, from start)
+async function serialReload(base, fn) {
+    const lock = process.env.E2E_LOCK;
+    for (let t0 = Date.now(); ; await sleep(50)) {
+        try {
+            fs.mkdirSync(lock);
+            break;
+        } catch (e) {
+            if (e.code !== 'EEXIST')
+                throw e;
+            // a worker that died holding it
+            if (Date.now() - t0 > 60000)
+                fs.rmSync(lock, { recursive: true, force: true });
+        }
+    }
+    try {
+        const ret = await fn();
+        await settled(base);
+        return ret;
+    } finally {
+        fs.rmSync(lock, { recursive: true, force: true });
+    }
+}
+
+// wait until up2k takes an upload again (an upload handshake in the admin's home folder:
+// 503 while it reinitialises after a reload)
+let probe = null;
+async function settled(base) {
+    probe = probe || session(base, 'admin');
+    const s = await probe;
+    for (let i = 0; ; i++) {
+        const r = await s.postJson('/home/admin/', {
+            name: 'e2e-probe.bin', size: 1, lmod: 1700000000, hash: ['A'.repeat(44)],
+        });
+        const t = await r.text();
+        if (r.status !== 503)
+            return;
+        if (i > 300)
+            throw new Error(`up2k still refuses uploads 30 s after a reload: ${t.trim()}`);
+        await sleep(100);
+    }
+}
+
 // a logged-in session for one account: { get, post } with its cookie
 async function session(base, user) {
     const fd = new FormData();
@@ -198,16 +256,19 @@ async function session(base, user) {
     const cookie = (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).join('; ');
     if (!/cppwd=/.test(cookie))
         throw new Error(`login as ${user} set no cookie (status ${r.status})`);
-    const req = (method, url, body, type) =>
-        fetch(base + url, {
+    const req = (method, url, body, type) => {
+        const go = () => fetch(base + url, {
             method,
             body,
             headers: Object.assign({ Cookie: cookie }, type ? { 'Content-Type': type } : {}),
             redirect: 'manual',
         });
+        return reloads(method, url) ? serialReload(base, go) : go();
+    };
     return {
         get: (url) => req('GET', url),
         put: (url, body) => req('PUT', url, body),
+        del: (url) => req('DELETE', url),
         postJson: (url, obj) => req('POST', url, JSON.stringify(obj), 'application/json'),
     };
 }
@@ -231,6 +292,7 @@ async function start() {
         fs.mkdirSync(path.join(tmp, 'srv', 'home', u), { recursive: true });
     fs.mkdirSync(path.join(tmp, 'db'));
 
+    process.env.E2E_LOCK = path.join(tmp, 'reload.lock');
     const port = await freePort();
     const cfg = path.join(tmp, 'e2e.conf');
     fs.writeFileSync(cfg, conf(tmp, port));
@@ -369,3 +431,5 @@ module.exports.SEED = SEED;
 module.exports.UPLOADS = UPLOADS;
 module.exports.LOGOUT_USERS = LOGOUT_USERS;
 module.exports.session = session;
+module.exports.reloads = reloads;
+module.exports.serialReload = serialReload;

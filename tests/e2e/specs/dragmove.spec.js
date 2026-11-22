@@ -1,10 +1,10 @@
 'use strict';
 
-const { test, expect, row } = require('../fixtures.js');
+const { test, expect, row, scratch } = require('../fixtures.js');
 
 test('dragging a row onto a folder row moves it there', async ({ page, loginAs, put, ls }, info) => {
     // its own file and folder, so the sizes running in parallel don't move each other's
-    const dir = `/home/alice/drag-${info.project.name}/`;
+    const dir = scratch(info, 'drag');
     await put('alice', dir + 'letter.txt', 'dear bob\n');
     await put('alice', dir + 'archive/keep.txt', 'kept\n');
 

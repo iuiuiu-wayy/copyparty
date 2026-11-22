@@ -4,7 +4,7 @@
 // entry upstream's right-click menu had); a bottom sheet on a phone; it acts on the whole
 // selection when the row is part of it
 
-const { test, expect, row } = require('../fixtures.js');
+const { test, expect, row, scratch } = require('../fixtures.js');
 
 const more = (page, name) => row(page, name).getByRole('button', { name: 'Actions for ' + name });
 const menu = (page) => page.getByRole('menu', { name: 'Actions' });
@@ -13,7 +13,7 @@ const box = (page, name) => row(page, name).getByRole('checkbox');
 
 // a folder of its own per size, since the sizes run in parallel
 async function mkdir(put, info, what, files) {
-    const dir = `/home/alice/${what}-${info.project.name}/`;
+    const dir = scratch(info, what);
     await Promise.all(files.map((f) => put('alice', dir + f, f + '\n')));
     return dir;
 }

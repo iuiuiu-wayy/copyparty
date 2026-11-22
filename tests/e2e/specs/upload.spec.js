@@ -5,11 +5,11 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { test, expect, row } = require('../fixtures.js');
+const { test, expect, row, scratch } = require('../fixtures.js');
 
 // a folder of alice's of its own for each scenario and size (projects run in parallel)
 async function folder(put, info, what) {
-    const dir = `/home/alice/${what}-${info.project.name}/`;
+    const dir = scratch(info, what);
     await put('alice', dir + 'seed.txt', 'seed\n');
     return dir;
 }

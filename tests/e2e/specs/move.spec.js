@@ -5,7 +5,7 @@
 // account can write to can be picked; a refusal names the item and the server's reason.
 // Drag to move stays a desktop thing (specs/dragmove.spec.js); nothing drags on touch
 
-const { test, expect, row } = require('../fixtures.js');
+const { test, expect, row, scratch } = require('../fixtures.js');
 
 const dlg = (page) => page.getByRole('dialog');
 const here = (page) => dlg(page).getByRole('button', { name: 'Move here' });
@@ -15,7 +15,7 @@ const crumbs = (page) => dlg(page).getByRole('navigation', { name: 'Folder path'
 
 // a folder of its own per size and scenario, since the sizes run in parallel
 async function seed(put, info, what, files) {
-    const dir = `/home/alice/${what}-${info.project.name}/`;
+    const dir = scratch(info, what);
     for (const f of files)
         await put('alice', dir + f, f + ' ' + info.project.name + '\n');
     return dir;

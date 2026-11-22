@@ -2,7 +2,7 @@
 
 // the Drive-style frame: top bar, left nav (a drawer on a phone), More tools
 
-const { test, expect, row } = require('../fixtures.js');
+const { test, expect, row, scratch } = require('../fixtures.js');
 
 test('an account holder gets a top bar and a nav', async ({ page, loginAs, nav, narrow }) => {
     await loginAs('alice');
@@ -218,7 +218,7 @@ for (const [name, seen] of Object.entries(PANELS)) {
 }
 
 test('New folder from More tools makes the folder', async ({ page, loginAs, tool, put, ls }, info) => {
-    const dir = `/home/alice/tools-${info.project.name}/`;
+    const dir = scratch(info, 'tools');
     await put('alice', dir + 'x.txt', 'x\n');
     await loginAs('alice');
     await page.goto(dir);

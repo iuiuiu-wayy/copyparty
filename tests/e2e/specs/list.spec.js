@@ -4,14 +4,14 @@
 // long-press starts selecting on a phone, and the selection bar acts on what is selected
 
 const fs = require('fs');
-const { test, expect, row } = require('../fixtures.js');
+const { test, expect, row, scratch } = require('../fixtures.js');
 
 const box = (page, name) => row(page, name).getByRole('checkbox');
 const link = (page, name) => row(page, name).getByRole('link', { name, exact: true });
 
 // a folder of its own per size, since the sizes run in parallel
 async function mkdir(put, info, what, files) {
-    const dir = `/home/alice/${what}-${info.project.name}/`;
+    const dir = scratch(info, what);
     for (const f of files)
         await put('alice', dir + f, f + '\n');
     return dir;

@@ -4,7 +4,7 @@
 // whole name for a folder), Enter saves; several items open upstream's batch rename panel;
 // F2 does the same; a refused rename shows the server's reason
 
-const { test, expect, row } = require('../fixtures.js');
+const { test, expect, row, scratch } = require('../fixtures.js');
 
 const more = (page, name) => row(page, name).getByRole('button', { name: 'Actions for ' + name });
 const menu = (page) => page.getByRole('menu', { name: 'Actions' });
@@ -14,7 +14,7 @@ const box = (page, name) => row(page, name).getByRole('checkbox');
 
 // a folder of its own per size and browser, since they run in parallel
 async function mkdir(put, info, what, files) {
-    const dir = `/home/alice/${what}-${info.project.name}/`;
+    const dir = scratch(info, what);
     for (const f of files)
         await put('alice', dir + f, f + '\n');
     return dir;
