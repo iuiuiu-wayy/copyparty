@@ -353,6 +353,47 @@ bare404() {
 
 # 7. Outside reaches nothing but share links and static files: a bare 404 from nginx
 bare404 "Outside: / gives a bare 404" $outside "$https/"
+bare404 "Outside: the control panel gives a bare 404" $outside "$https/?h" -u "check-user:$pw"
+bare404 "Outside: a home folder gives a bare 404" $outside "$https/home/check-user/mine.txt" -u "check-user:$pw"
+bare404 "Outside: a volume gives a bare 404" $outside "$https/vol/hello.txt" -u "check-user:$pw"
+bare404 "Outside: the login POST gives a bare 404" $outside "$https/" \
+    --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
+# an account holder's login cookie, made Inside, is no use Outside
+req $inside -o /dev/null -c "$tmp/jar" "$https/" --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
+if grep -q cppws "$tmp/jar" 2>/dev/null; then
+    bare404 "Outside: a login cookie from Inside still gives a bare 404" $outside -b "$tmp/jar" "$https/home/check-user/"
+else
+    fail "Outside: a login cookie from Inside still gives a bare 404" "no cookie from logging in Inside"
+fi
+bare404 "Outside: PUT on a volume gives a bare 404" $outside -T "$tmp/big.bin" -u "check-user:$pw" "$https/vol/out.bin"
+bare404 "Outside: DELETE on a volume gives a bare 404" $outside -X DELETE -u "check-user:$pw" "$https/vol/hello.txt"
+bare404 "Outside: PROPFIND on a volume gives a bare 404" $outside -X PROPFIND -H 'Depth: 1' -u "check-user:$pw" "$https/vol/"
+bare404 "Outside: MKCOL on a volume gives a bare 404" $outside -X MKCOL -u "check-user:$pw" "$https/vol/newdir/"
+# paths that only look like the share-link or static area
+for p in /share /.cpr /sharex//share/../vol/hello.txt /share/%2e%2e/vol/hello.txt /share/..%2fvol/hello.txt \
+    /.cpr/../vol/hello.txt /.cpr/%2e%2e/vol/hello.txt /.cpr/..%2fvol/hello.txt /share%2f../vol/hello.txt; do
+    bare404 "Outside: $p gives a bare 404" $outside --path-as-is -u "check-user:$pw" "$https$p"
+done
+# posing as Inside with a header changes nothing
+bare404 "Outside: a forged X-Forwarded-For with the home IP stays Outside" $outside \
+    -H "X-Forwarded-For: $inside" -u "check-user:$pw" "$https/vol/hello.txt"
+bare404 "Outside: a forged X-Real-IP with the home IP stays Outside" $outside \
+    -H "X-Real-IP: $inside" -u "check-user:$pw" "$https/vol/hello.txt"
+# the 443 server answers any Host and SNI (a scanner sends the bare IP): the same rules hold
+noname() { # SRC HOST [curl args...]: a request on 443 with HOST as both Host and SNI
+    local src=$1 h=$2
+    shift 2
+    curl -sk --max-time 30 --interface "$src" --resolve "$h:$p_https:127.0.0.1" "$@"
+}
+for h in 127.0.0.1 unknown.example; do
+    got=$(noname $outside $h -o "$tmp/body" -w '%{http_code}' "https://$h:$p_https/")
+    body=$(noname $outside $h "https://$h:$p_https/share/$k_open/hello.txt")
+    if [ "$got" = 404 ] && grep -qF '<center>nginx</center>' "$tmp/body" && [ "$body" = "hello from copyparty" ]; then
+        pass "Outside: with $h as Host and SNI, / gives a bare 404 and a share link opens"
+    else
+        fail "Outside: with $h as Host and SNI, / gives a bare 404 and a share link opens" "/ gave $got; share: ${body:0:60}"
+    fi
+done
 
 # 6. no HTTP/2 (ALPN offers http/1.1 only) and no nginx version anywhere
 alpn=$(openssl s_client -connect "127.0.0.1:$p_https" -servername "$domain" -alpn h2,http/1.1 \
