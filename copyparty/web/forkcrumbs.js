@@ -151,6 +151,11 @@
         return a.getAttribute('href').split('?')[0];
     }
 
+    // compared decoded: the server quotes ' ( ) ! * in its links, a typed URL may not
+    function under(p, base) {
+        return uricom_dec(p).indexOf(uricom_dec(base)) === 0;
+    }
+
     function li(kids, cls) {
         return el('li', { class: cls || null }, kids);
     }
@@ -181,9 +186,9 @@
                 if (enc(links[a]) == SR + have_shr + key + '/')
                     first = a;
         }
-        else if (home && evp.indexOf(home) === 0) {
+        else if (home && under(evp, home)) {
             for (var a = 0; a < links.length; a++)
-                if (enc(links[a]) == home) {
+                if (uricom_dec(enc(links[a])) == uricom_dec(home)) {
                     first = a;
                     label = 'My files';
                 }
@@ -214,8 +219,8 @@
         info = {
             name: label && !keep.length ? label : (links.length == 1 && !guest ? 'All folders' : last.textContent),
             vp: enc(last),
-            root: !keep.length || (!!home && enc(last) == home),
-            home: !!home && evp.indexOf(home) === 0
+            root: !keep.length || (!!home && uricom_dec(enc(last)) == uricom_dec(home)),
+            home: !!home && under(evp, home)
         };
         if (label && keep.length)
             keep[0].textContent = label;

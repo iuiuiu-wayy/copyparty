@@ -13,9 +13,11 @@ const path = require('path');
 
 const REPO = path.resolve(__dirname, '..', '..');
 
-// the accounts of the tested config in FORK.md, plus dave, who has no home folder
+// the accounts of the tested config in FORK.md, plus dave, who has no home folder, and
+// o'brien, whose name the server URL-quotes (%27) where JavaScript's encodeURIComponent doesn't
 const ACCOUNTS = {
     admin: 'adminpw1', alice: 'alicepw1', bob: 'bobpw111', carol: 'carolpw1', dave: 'davepw11',
+    "o'brien": 'obrienpw1',
 };
 
 // accounts a scenario may log out: a logout ends every session of that account, so each

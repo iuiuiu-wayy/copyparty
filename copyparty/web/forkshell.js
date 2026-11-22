@@ -19,7 +19,10 @@
         de = document.documentElement,
         guest = acct == '*' || !!in_shr ||
             !!(window.have_shr && get_evpath().indexOf(SR + have_shr) === 0),
-        home = SR + '/home/' + encodeURIComponent(acct) + '/',
+        // URL-quoted as the server quotes its links (quotep: also ! ' ( ) *)
+        home = SR + '/home/' + encodeURIComponent(acct).replace(/[!'()*]/g, function (c) {
+            return '%' + c.charCodeAt(0).toString(16).toUpperCase();
+        }) + '/',
         hasHome = !guest,
         view = '',      // '' = a folder, or the view shown: 'shared' / 'recent'
         nombar = !fullui && (window.ui_nombar || /[?&]nombar\b/.exec(sloc0));
@@ -326,7 +329,7 @@
         if (view)
             return view;
         var p = get_evpath();
-        if (hasHome && p.indexOf(home) === 0)
+        if (hasHome && dec(p).indexOf(dec(home)) === 0)
             return 'mine';
         return 'shared';
     }
@@ -426,7 +429,7 @@
         }
         catch (e) { }
         if (!dirs || !dirs.some(function (d) {
-            return d.href.split('?')[0].replace(/\/$/, '') == encodeURIComponent(acct);
+            return dec(d.href).replace(/\/$/, '') == acct;
         }))
             return nohome();
         if (get_evpath() == SR + '/' && !location.search)

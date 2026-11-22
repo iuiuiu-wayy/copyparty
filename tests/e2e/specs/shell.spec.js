@@ -56,6 +56,19 @@ test('Shared with me and Recent uploads show in the list\'s place, My files brin
     await expect(page.getByRole('heading', { name: 'Recent uploads', level: 2 })).toBeHidden();
 });
 
+test('an account name the server URL-quotes still gets My files', async ({ page, loginAs, nav, narrow }) => {
+    await loginAs("o'brien");
+    // as the server's links spell it (quotep: %27), and as the control panel lands or a person types it
+    for (const url of ['/home/o%27brien/', "/home/o'brien/"]) {
+        await page.goto(url);
+        const n = await nav();
+        await expect(n.getByRole('link', { name: 'My files' })).toHaveAttribute('aria-current', 'page');
+        if (narrow)
+            await page.keyboard.press('Escape');
+        await expect(page.getByRole('navigation', { name: 'Breadcrumbs' })).toContainText('My files');
+    }
+});
+
 test('a server folder puts Shared with me in front', async ({ page, loginAs, nav }) => {
     await loginAs('alice');
     await page.goto('/family/');
