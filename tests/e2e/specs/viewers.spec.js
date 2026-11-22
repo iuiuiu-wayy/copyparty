@@ -25,7 +25,7 @@ async function go(page, loginAs) {
 }
 
 // a finger dragged sideways across the screen by dx px (Chromium: real touch
-// through the devtools protocol; Firefox: the touch events such a swipe makes)
+// through the devtools protocol; Firefox and WebKit: the touch events such a swipe makes)
 // (in the upper part of the screen: upstream ignores a swipe that starts near a video's
 // controls, and the small seeded video sits in the middle)
 async function swipeX(page, browserName, dx) {
@@ -40,12 +40,29 @@ async function swipeX(page, browserName, dx) {
         await cdp.detach();
         return;
     }
+    // (WebKit on Linux has no Touch constructor and its TouchEvent takes no touch lists: the
+    // touches come from the older document.createTouch, set on the event by hand)
     await page.evaluate(({ x, y, dx, steps }) => {
         const ov = document.getElementById('bbox-overlay');
-        const t = (xx) => new Touch({ identifier: 1, target: ov, clientX: xx, clientY: y, pageX: xx, pageY: y });
-        const fire = (type, xx, list) => ov.dispatchEvent(new TouchEvent(type, {
-            bubbles: true, cancelable: true, touches: list ? [t(xx)] : [], changedTouches: [t(xx)],
-        }));
+        const t = (xx) => {
+            try {
+                return new Touch({ identifier: 1, target: ov, clientX: xx, clientY: y, pageX: xx, pageY: y });
+            } catch (e) {
+                return document.createTouch(window, ov, 1, xx, y, xx, y);
+            }
+        };
+        const fire = (type, xx, list) => {
+            const touches = list ? [t(xx)] : [], changedTouches = [t(xx)];
+            let ev;
+            try {
+                ev = new TouchEvent(type, { bubbles: true, cancelable: true, touches, changedTouches });
+            } catch (e) {
+                ev = new TouchEvent(type, { bubbles: true, cancelable: true });
+                Object.defineProperty(ev, 'touches', { value: touches });
+                Object.defineProperty(ev, 'changedTouches', { value: changedTouches });
+            }
+            ov.dispatchEvent(ev);
+        };
         fire('touchstart', x, true);
         for (let i = 1; i <= steps; i++)
             fire('touchmove', x + (dx * i) / steps, true);
@@ -257,6 +274,11 @@ test.describe('the audio player', () => {
         await expect(p.getByRole('button', { name: 'Pause', exact: true })).toBeVisible();
         await expect.poll(() => page.evaluate(() => !mp.au.paused)).toBe(true);
         await fits(page, p);
+        // the play / pause icon is not rebuilt on every progress tick: Safari drops a click
+        // whose press landed on an icon that was swapped out before the release
+        await page.evaluate(() => { window.fkIcon = document.querySelector('.fk-pplay').firstChild; });
+        await page.waitForTimeout(1000);
+        expect(await page.evaluate(() => document.querySelector('.fk-pplay').firstChild === window.fkIcon)).toBe(true);
         // the bar is the whole width, over the nav on a desktop, at the bottom
         const b = await p.boundingBox(), vp = page.viewportSize();
         expect(b.x).toBeLessThanOrEqual(0);
