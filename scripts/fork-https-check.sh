@@ -634,7 +634,95 @@ else
     fail "responses carry no nginx version" "version ${ver:-unknown} in:$leak"
 fi
 
-# 11. rate limits: Outside per address (20/s, burst 200, 32 connections), Inside never. Last,
+# 11. certbot's renewal (--nginx) still passes Let's Encrypt's HTTP-01 challenge on port 80.
+# For each renewal certbot edits the site file for a moment, then puts it back byte for byte:
+# into every server block whose server_name holds the domain (its choose_auth_vhosts) it adds
+# a "rewrite ... break" at the top, which skips the port-80 "return 301", and an exact location
+# for the token. Here the same two lines, as certbot 2.1.0 (Debian 12) writes them
+# (certbot_nginx/_internal/http_01.py, _make_or_mod_server_block), go into a copy, nginx
+# reloads it, Outside asks for the token, and the original is restored
+certbot_edit() { # SITE-FILE TOKEN VALIDATION: prints the file as certbot's challenge leaves it
+    awk -v d="$domain" -v tok="$2" -v val="$3" '
+    function flush(   i) {
+        for (i = 1; i <= n; i++) {
+            if (named && i == 1) {
+                print buf[i] "rewrite ^(/.well-known/acme-challenge/.*) $1 break; # managed by Certbot"
+            } else if (named && i == n) {
+                print "location = /.well-known/acme-challenge/" tok "{default_type text/plain;return 200 " val ";} # managed by Certbot"
+                print buf[i]
+            } else print buf[i]
+        }
+        n = 0; named = 0
+    }
+    {
+        line = $0; sub(/#.*/, "", line)
+        if (!depth && line ~ /^[ \t]*server[ \t]*\{/) { inserver = 1 }
+        if (inserver) {
+            buf[++n] = $0
+            if (line ~ /^[ \t]*server_name[ \t]/ && (" " line " ") ~ ("[ \t]" d "[ ;]")) named = 1
+        } else print
+        depth += gsub(/\{/, "{", line) - gsub(/\}/, "}", line)
+        if (inserver && !depth) { inserver = 0; flush() }
+    }' "$1"
+}
+acme_tok=fork-check-acme-token
+acme_val=$acme_tok.fork-check-thumbprint
+cp "$tmp/site.conf" "$tmp/site.orig"
+certbot_edit "$tmp/site.orig" $acme_tok $acme_val >"$tmp/site.certbot"
+# into the same file (same inode: it is bind-mounted), then reload; wait for the new workers
+cat "$tmp/site.certbot" >"$tmp/site.conf"
+if docker exec "$cname" nginx -s reload 2>"$tmp/reload.err"; then
+    for i in $(seq 25); do
+        got=$(req $outside -w ' %{http_code}' "$http/.well-known/acme-challenge/$acme_tok")
+        [ "$got" = "$acme_val 200" ] && break
+        sleep 0.2
+    done
+else
+    got="nginx refused the certbot-edited file: $(head -c 300 "$tmp/reload.err")"
+fi
+if [ "$got" = "$acme_val 200" ]; then
+    pass "port 80 answers certbot's HTTP-01 challenge during a renewal"
+else
+    fail "port 80 answers certbot's HTTP-01 challenge during a renewal" "got: ${got:0:120}"
+fi
+cat "$tmp/site.orig" >"$tmp/site.conf"
+docker exec "$cname" nginx -s reload 2>/dev/null || die "nginx did not take the site file back"
+for i in $(seq 25); do
+    got=$(req $outside -o /dev/null -w '%{http_code}' "$http/.well-known/acme-challenge/$acme_tok")
+    [ "$got" = 301 ] && break
+    sleep 0.2
+done
+[ "$got" = 301 ] || die "nginx still serves the certbot-edited file after restoring it"
+
+# 12. the access log names the host each request asked for (the domain or a bare IP) and whether
+# it was Inside or Outside. The official image sends access.log to the container's stdout
+logline() { # MARKER: the access-log line of the request carrying it
+    local i
+    for i in $(seq 20); do
+        docker logs "$cname" 2>/dev/null | grep -F "?$1 " && return
+        sleep 0.1
+    done
+}
+bad=
+marker
+req $outside -o /dev/null "$https/share/$k_open/?$m"
+logline "$m" | grep -qF "\"$domain\" outside" || bad="$bad Outside-domain:[$(logline "$m")]"
+marker
+curl -sk --max-time 30 --interface $outside -o /dev/null "https://127.0.0.1:$p_https/share/$k_open/?$m"
+logline "$m" | grep -qF '"127.0.0.1" outside' || bad="$bad Outside-bare-IP:[$(logline "$m")]"
+marker
+req $inside -o /dev/null "$https/share/$k_open/?$m"
+logline "$m" | grep -qF "\"$domain\" inside" || bad="$bad Inside:[$(logline "$m")]"
+marker
+req $outside -o /dev/null "$http/?$m"
+logline "$m" | grep -qF "\"$domain\" outside" || bad="$bad port-80:[$(logline "$m")]"
+if [ -z "$bad" ]; then
+    pass "the access log shows each request's host and Inside or Outside"
+else
+    fail "the access log shows each request's host and Inside or Outside" "${bad:0:300}"
+fi
+
+# 13. rate limits: Outside per address (20/s, burst 200, 32 connections), Inside never. Last,
 # since a flood uses up its address's burst; each rule floods from an address of its own
 # (any 127.x works), so one rule's limit never leaks into another
 # flood SRC N URL [curl args...]: N requests as fast as one curl sends them (one connection,
