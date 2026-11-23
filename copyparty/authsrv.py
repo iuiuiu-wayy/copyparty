@@ -18,6 +18,7 @@ from .bos import bos
 from .cfg import flagdescs, permdescs, vf_bmap, vf_cmap, vf_vmap
 from .fork_grants import mount_grants
 from .fork_harden import harden_vfs, purge_ownerless_shares
+from .fork_shr_auth import share_pw_start, share_pw_user
 from .pwhash import PWHash
 from .util import (
     DEF_MTE,
@@ -2064,7 +2065,7 @@ class AuthSrv(object):
             cur = db.cursor()
             cur2 = db.cursor()
             now = time.time()
-            pw2u = {v.strip(): k for k, v in acct.items()}  # fork-only: share-pw == account-pw
+            pw2u = share_pw_start(vfs, acct)  # fork: share links take only their own passwords
             purge_ownerless_shares(self.args, db, acct, self.log)  # fork
             for row in cur.execute("select * from sh"):
                 s_k, s_pw, s_vp, s_pr, s_nf, s_un, s_t0, s_t1 = row
@@ -2076,8 +2077,7 @@ class AuthSrv(object):
                     self.log(t % (s_pr, s_k, s_un, s_vp))
 
                 if s_pw and s_pw.strip() in pw2u:  # fork
-                    # that pw logs in as this account; grant the share to it
-                    sun = pw2u[s_pw.strip()]
+                    sun = share_pw_user(vfs, acct, s_pw)  # fork: not the account's
                 elif s_pw:
                     # gotta reuse the "account" for all shares with this pw,
                     # so do a light scramble as this appears in the web-ui
