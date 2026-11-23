@@ -75,12 +75,13 @@ the new one in step 2. The rest of certbot's lines are replaced on purpose: its 
 sed -e 's/__DOMAIN__/files.example.org/g' -e 's/__HOME_IP__/203.0.113.7/g' \
     /opt/copyparty/contrib/nginx/fork-https-outside.conf >~/copyparty.conf.new
 grep -c '__DOMAIN__\|__HOME_IP__' ~/copyparty.conf.new
-grep -nE 'server_name|live/|^\s+[0-9.]+ 0;' ~/copyparty.conf.new
+grep -nE 'server_name|live/|return 301|^\s+[0-9.]+ 0;' ~/copyparty.conf.new
 ```
 
 - the first `grep` shows `0` (nothing left unfilled)
 - the second shows `server_name files.example.org;` twice, the two `live/files.example.org/` paths,
-  and `203.0.113.7 0;` (the one Inside address)
+  `return 301 https://files.example.org$request_uri;` (port 80 redirects only to the domain) and
+  `203.0.113.7 0;` (the one Inside address)
 
 ## 3. Put it in place and reload
 
@@ -155,11 +156,17 @@ curl -s -o /dev/null -w '%{http_code}\n' -H 'X-Forwarded-For: 203.0.113.7' https
 curl -s -o /dev/null -w '%{http_code}\n' -H 'X-Real-IP: 203.0.113.7' https://files.example.org/
 curl -sI https://files.example.org/share/<key>/ | grep -i '^server'
 curl -s -o /dev/null -w '%{http_version}\n' --http2 https://files.example.org/share/<key>/
+curl -sI -H 'Host: evil.example' http://files.example.org/ | grep -i '^location'
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://files.example.org/.cpr/
+curl -s -o /dev/null -w '%{http_code}\n' https://files.example.org/.cpr/ui.css
 ```
 
 - `404`, `404`: a forged header doesn't make Outside Inside
 - `Server: nginx`, with no version number
 - `1.1`: no HTTP/2
+- `Location: https://files.example.org/`: port 80 sends any Host to the domain only
+- `404`, `200`: copyparty's static files take only GET and HEAD Outside (nginx also drops any
+  login sent there, which the local check proves)
 
 The rate limit (optional; normal browsing never gets near it): one Outside address gets 20 requests
 a second, plus a burst of 200, and at most 32 open at once. Seeing a 429 by hand takes a quick flood

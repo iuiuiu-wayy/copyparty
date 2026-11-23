@@ -42,10 +42,12 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/fork-https-check.XXXXXX")
 cname=fork-https-check-$$
 cpp_pid=
 slow_pid= # the open-requests rule's curl, while it runs
+hdr_pid=  # the slow-header rule's client, while it runs
 
 cleanup() {
     trap '' INT TERM # a second Ctrl-C must not cut the cleanup short
     [ -z "$slow_pid" ] || kill "$slow_pid" 2>/dev/null
+    [ -z "$hdr_pid" ] || kill "$hdr_pid" 2>/dev/null
     docker rm -f "$cname" >/dev/null 2>&1
     if [ -n "$cpp_pid" ]; then
         kill "$cpp_pid" 2>/dev/null
@@ -98,6 +100,13 @@ cat >"$tmp/copyparty.conf" <<EOF
   chpw-db: $tmp/db/chpw.json
   # password changes on, as on the Pi, so rule 8 has one to refuse
   chpw
+  # log the headers nginx passes on (rule 8b); the marker first, to find a request's lines
+  ihead: x-fork-marker
+  ihead: authorization
+  ihead: cookie
+  ihead: pw
+  # and log every request, /.cpr/ too (by default copyparty leaves those out)
+  lf-url: ^/fork-check-logs-everything$
 
 [accounts]
   check-admin: $pw_admin
@@ -202,6 +211,27 @@ mkshare $k_pw '["read"]' "$pw_share"
 
 # --- the rules -------------------------------------------------------------------------------
 fails=0
+
+# rule 14 starts now, since it waits: from Outside, a TLS connection that sends half a request
+# header and then nothing; prints "closed SECONDS" once nginx closes it, or "open" after 30 s
+"$py" -I - 127.0.0.7 "$p_https" "$domain" >"$tmp/slowhdr" 2>&1 <<'EOF' &
+import socket, ssl, sys, time
+
+src, port, host = sys.argv[1:]
+ctx = ssl._create_unverified_context()
+s = socket.create_connection(("127.0.0.1", int(port)), timeout=10, source_address=(src, 0))
+s = ctx.wrap_socket(s, server_hostname=host)
+s.sendall(("GET /share/ HTTP/1.1\r\nHost: %s\r\n" % (host,)).encode("ascii"))
+t0 = time.time()
+s.settimeout(30)
+try:
+    while s.recv(4096):
+        pass
+    print("closed %.1f" % (time.time() - t0,))
+except socket.timeout:
+    print("open")
+EOF
+hdr_pid=$!
 pass() { echo "PASS  $1"; }
 fail() {
     local why=${2:-}
@@ -299,6 +329,15 @@ if [ "$got" = "301 https://$domain/vol/hello.txt?x=1" ]; then
     pass "port 80 redirects to HTTPS"
 else
     fail "port 80 redirects to HTTPS" "got: $got"
+fi
+
+# and only to the domain, whatever Host the request names (no open redirect)
+got=$(curl -s --max-time 30 --interface $outside -o /dev/null -w '%{http_code} %{redirect_url}' \
+    -H 'Host: evil.example' "http://127.0.0.1:$p_http/x?y=1")
+if [ "$got" = "301 https://$domain/x?y=1" ]; then
+    pass "port 80 redirects only to the domain, whatever the Host"
+else
+    fail "port 80 redirects only to the domain, whatever the Host" "got: $got"
 fi
 
 # 3. copyparty sees each client's real address, never nginx's own
@@ -598,6 +637,82 @@ else
         "made with:${bad:- none}; opens:${opened:- none}"
 fi
 
+# 8b. copyparty's static files (/.cpr/) Outside: only GET and HEAD, and no login. nginx passes
+# Outside no Authorization, Cookie or PW header and no query string there, and copyparty takes
+# no login under /.cpr/ anyway; both are checked. Outside from an address of its own
+outside_c=127.0.0.6
+# copyparty's log of the request carrying header "X-Fork-Marker: MARKER": the headers it logged
+# (ihead in its config above), then its request line
+seen() {
+    local i
+    for i in $(seq 20); do
+        grep -qF "[$1]" "$tmp/copyparty.log" && break
+        sleep 0.1
+    done
+    sed 's/\x1b\[[0-9;]*m//g' "$tmp/copyparty.log" |
+        awk -v m="x-fork-marker: [$1]" 'index($0, m) { on = 1; print; next } on && /\[H\] / { print; next } on { print; exit }'
+}
+bad=
+code=$(req $outside_c -o /dev/null -w '%{http_code}' -I "$https/.cpr/ui.css")
+[ "$code" = 200 ] || bad="$bad HEAD:$code"
+for how in $(logins); do
+    code=$(lreq $outside_c $how "$https/.cpr/ui.css" -o /dev/null -w '%{http_code}' -D "$tmp/hdrs")
+    [ "$code" = 200 ] || bad="$bad $how:$code"
+    grep -qiP '^set-cookie: cppw[sd]=(?!x;)' "$tmp/hdrs" && bad="$bad $how:logged-in"
+done
+if [ -z "$bad" ]; then
+    pass "Outside: /.cpr/ loads, and an account login there sets no login cookie"
+else
+    fail "Outside: /.cpr/ loads, and an account login there sets no login cookie" "got:$bad"
+fi
+# what reaches copyparty: Outside no login at all, Inside everything as sent
+marker
+mo=$m
+req $outside_c -o /dev/null -H "X-Fork-Marker: $mo" -H "PW: $pw" -u "check-user:$pw" -b "$tmp/jar" "$https/.cpr/ui.css?pw=$pw"
+blk=$(seen $mo)
+marker
+ms=$m # a query hidden in the path, as %3F
+req $outside_c --path-as-is -o /dev/null -H "X-Fork-Marker: $ms" "$https/.cpr/ui.css%3Fpw=$pw"
+blk_s=$(seen $ms)
+marker
+mi=$m
+req $inside -o /dev/null -H "X-Fork-Marker: $mi" -H "PW: $pw" -u "check-user:$pw" -b "$tmp/jar" "$https/.cpr/ui.css?pw=$pw"
+blk_i=$(seen $mi)
+bad=
+[ -n "$blk" ] || bad="$bad Outside:not-seen"
+grep -qiE '\[H\] (authorization|cookie|pw):' <<<"$blk" && bad="$bad Outside:header"
+grep -qF 'pw=' <<<"$blk" && bad="$bad Outside:query"
+[ -n "$blk_s" ] || bad="$bad %3F:not-seen"
+grep -qF '?pw=' <<<"$blk_s" && bad="$bad %3F:query"
+[ "$(grep -ciE '\[H\] (authorization|cookie|pw):' <<<"$blk_i")" = 3 ] || bad="$bad Inside:headers"
+grep -qF 'pw=' <<<"$blk_i" || bad="$bad Inside:query"
+if [ -z "$bad" ]; then
+    pass "Outside: nginx passes no Authorization, Cookie, PW or query to /.cpr/ (Inside: all)"
+else
+    fail "Outside: nginx passes no Authorization, Cookie, PW or query to /.cpr/ (Inside: all)" "got:$bad"
+fi
+# every other method, with or without a login: nginx's bare 404
+bare404 "Outside: the login POST on /.cpr/ gives a bare 404" $outside_c "$https/.cpr/" \
+    --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
+bare404 "Outside: PUT on /.cpr/ gives a bare 404" $outside_c -T "$tmp/big.bin" -u "check-user:$pw" "$https/.cpr/x.txt"
+bare404 "Outside: DELETE on /.cpr/ gives a bare 404" $outside_c -X DELETE -u "check-user:$pw" "$https/.cpr/ui.css"
+bare404 "Outside: PROPFIND on /.cpr/ gives a bare 404" $outside_c -X PROPFIND -H 'Depth: 1' -u "check-user:$pw" "$https/.cpr/"
+bad=
+for how in $(logins); do
+    key=checkcpr-$how
+    got=$(lreq $outside_c $how "$https/.cpr/?share" -o "$tmp/body" -w '%{http_code}' \
+        -H 'Content-Type: application/json' \
+        -d '{"k":"'$key'","vp":["/home/check-user/"],"pw":"","exp":"","perms":["read"]}')
+    if [ "$got" != 404 ] || ! grep -qF '<center>nginx</center>' "$tmp/body"; then
+        bad="$bad $how:$got"
+    fi
+done
+if [ -z "$bad" ]; then
+    pass "Outside: POST /.cpr/?share with an account login gives a bare 404"
+else
+    fail "Outside: POST /.cpr/?share with an account login gives a bare 404" "got:$bad"
+fi
+
 # 9. Inside reaches the whole site, answered as copyparty answers it directly. inside_as_direct
 # NAME WANT PATH [curl args...]: the status through nginx from Inside must be WANT and equal
 # copyparty's own; an @ in PATH becomes "n" (through nginx) or "d" (direct), for writes
@@ -842,6 +957,26 @@ if [ "$got" = 0 ]; then
     pass "Inside: 40 open requests at once get no 429"
 else
     fail "Inside: 40 open requests at once get no 429" "$got of 40 got 429"
+fi
+
+# 14. a slow request header (Outside, started before rule 1) is cut off within the site file's
+# client_header_timeout, which stays short: limit_conn counts a connection only once its header
+# is in, so a long timeout would let anyone hold connections open uncounted
+hto=$(grep -oE '^\s*client_header_timeout\s+[0-9]+[sm]?;' "$site" | grep -oE '[0-9]+[sm]?')
+case $hto in
+"") hto_s=60 ;; # nginx's default
+*m) hto_s=$((${hto%m} * 60)) ;;
+*) hto_s=${hto%s} ;;
+esac
+wait "$hdr_pid" 2>/dev/null
+hdr_pid=
+got=$(cat "$tmp/slowhdr")
+case $got in "closed "*) secs=${got#closed } ;; *) secs=999 ;; esac
+if [ "$hto_s" -le 60 ] && [ "${secs%.*}" -le $((hto_s + 5)) ]; then
+    pass "Outside: a slow request header is cut off within ${hto_s}s (client_header_timeout)"
+else
+    fail "Outside: a slow request header is cut off within ${hto_s}s (client_header_timeout)" \
+        "timeout ${hto:-default}; the connection: ${got:0:120}"
 fi
 
 echo
