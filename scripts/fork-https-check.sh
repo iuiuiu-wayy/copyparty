@@ -123,6 +123,18 @@ mkdir -p "$tmp/letsencrypt/live/$domain"
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=$domain" \
     -keyout "$tmp/letsencrypt/live/$domain/privkey.pem" \
     -out "$tmp/letsencrypt/live/$domain/fullchain.pem" >/dev/null 2>&1 || die "openssl failed"
+# the two files "certbot --nginx" puts beside the certificate, which the site file includes:
+# its TLS settings (the gist of certbot's options-ssl-nginx.conf) and DH parameters (ffdhe2048,
+# the same group certbot ships)
+cat >"$tmp/letsencrypt/options-ssl-nginx.conf" <<'EOF'
+ssl_session_cache shared:le_nginx_SSL:10m;
+ssl_session_timeout 1440m;
+ssl_session_tickets off;
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_prefer_server_ciphers off;
+EOF
+openssl genpkey -genparam -algorithm DH -pkeyopt dh_param:ffdhe2048 \
+    -out "$tmp/letsencrypt/ssl-dhparams.pem" 2>/dev/null || die "openssl dhparam failed"
 chmod -R a+rX "$tmp/letsencrypt"
 
 # the test values: domain, home IP, and ports (only on 127.0.0.1, never on all interfaces)

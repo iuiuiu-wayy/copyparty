@@ -95,6 +95,10 @@ do **not** enable mimalloc (`LD_PRELOAD`) in the arm64 docker image; it crashes 
 * default password storage is **plain text** in the config (`ah-alg: none`). Turn on hashing
   (`ah-alg`, generate with `--ah-cli` / `--ah-gen`). Check argon2's memory cost on the Pi before
   choosing it over scrypt -- not measured yet.
+* HTTPS from the internet: nginx in front, where Outside (anything but the home's static IP)
+  opens only share links: the site file `contrib/nginx/fork-https-outside.conf`, checked locally
+  by `scripts/fork-https-check.sh`; putting it on the Pi and checking it by hand:
+  [docs/fork-https-outside-pi.md](docs/fork-https-outside-pi.md)
 * get copyparty only from official sources (github releases, PyPI, `copyparty/*` on docker hub,
   copyparty.eu). A "maintained fork… security patches… pip install" repo showed up in the fork
   list in Nov 2026 and was deleted soon after.
