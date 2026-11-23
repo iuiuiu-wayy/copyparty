@@ -185,8 +185,16 @@ share links, always (not only with `harden`): under the share link area (`/share
 guest's there, so a leaked password or stolen cookie gives no control panel data, no password
 change and no new share link through a share link URL (https-outside spec, stories 39-42). An
 account password typed or sent there is refused like a wrong one and counts toward the password
-ban; a login cookie is ignored there (no ban, still logged in elsewhere). An account holder sees
-her own link as a guest does. Code: `copyparty/fork_shr_auth.py`, tests:
+ban, logged only as "account login refused under a share link" (no password or hash, whatever
+`log-badpwd` says); a login cookie is ignored there (no ban, still logged in elsewhere). An
+account password in basic auth or the `PW` header next to a share link's cookie (a browser that
+keeps sending it) is ignored instead: the cookie counts, no ban. An account holder sees her own
+link as a guest does. copyparty's static files (`/.cpr/...`, open to Outside like the share
+links) take no login at all: everyone is a guest there and no password is looked at, logged or
+counted toward a ban, so no login, cookie or `POST /.cpr/?share` works through them;
+`/.cpr/metrics` (`--stats`) is left as upstream has it. A share-link password login still sets
+the one site-wide login cookie, replacing an account's in that browser (upstream does that too;
+scoping it to the share link needs upstream edits to cookie parsing). Code: `copyparty/fork_shr_auth.py`, tests:
 `tests/test_fork_shr_auth.py`; see
 [its upstream edit](#upstream-edit-share-links-take-only-their-own-passwords)
 

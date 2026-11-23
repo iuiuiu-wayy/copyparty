@@ -6,6 +6,7 @@ from __future__ import division, print_function, unicode_literals
 # password or login cookie is answered as a guest's (https-outside ticket 04)
 
 import base64
+import hashlib
 import io
 import json
 import os
@@ -18,7 +19,7 @@ import zipfile
 from copyparty.authsrv import AuthSrv
 from copyparty.httpcli import HttpCli
 from tests import util as tu
-from copyparty.util import Garda
+from copyparty.util import Garda, ub64enc
 from tests.util import Cfg
 
 KEY = "abcdefghijkl"  # an open share link of /d/
@@ -45,10 +46,11 @@ ACCOUNT_PW = [
 
 class TestForkShrAuth(unittest.TestCase):
     def log(self, src, msg, c=0):
-        pass
+        self.logs.append(msg)
 
     def setUp(self):
         self.conn = None
+        self.logs = []
         self.td = tu.get_ramdisk()
         td = os.path.join(self.td, "vfs")
         os.mkdir(td)
@@ -95,6 +97,7 @@ class TestForkShrAuth(unittest.TestCase):
             ses_db="ses.db",
             no_ses=False,  # the default; login cookies hold a session, not the password
             ses_len=20,
+            bauth_last=False,  # the default: basic auth wins over a cookie
             **ka
         )
         self.reload()
@@ -333,6 +336,90 @@ class TestForkShrAuth(unittest.TestCase):
             self.assertEqual(st, 201, b)
             with open("d/" + fn, "rb") as f:
                 self.assertEqual(f.read(), b"ok")
+
+    def logged_in(self, h):
+        """the reply sets a login cookie (not the "x" that logs out)"""
+        for ln in h.split("\r\n"):
+            zs = ln.lower()
+            if zs.startswith("set-cookie: cppw") and not zs[17:].startswith("=x;"):
+                return True
+        return False
+
+    def test_static_files_take_no_account_login(self):
+        # /.cpr/ is open to Outside like the share links: no login there
+        self.two_links()
+        hck = self.ck(self.login("", "pa")[0])
+        for hdr, q in ACCOUNT_PW + [(hck, ""), ("", "")]:
+            st, h, b = self.req("GET", self.url(".cpr/ui.css", q), hdr)
+            self.assertEqual(st, 200, (hdr, q))
+            self.assertFalse(self.logged_in(h), (hdr, q))
+            self.assertNotIn("cppwd=x", h, (hdr, q))  # still logged in elsewhere
+        # a right and a wrong password get the same answer
+        right = self.req("GET", ".cpr/ui.css?pw=pa")
+        wrong = self.req("GET", ".cpr/ui.css?pw=nope")
+        self.assertEqual(right[0], wrong[0])
+        self.assertEqual("Set-Cookie" in right[1], "Set-Cookie" in wrong[1])
+        st, h, b = self.post_form(".cpr/", [("act", "login"), ("cppwd", "pa")])
+        self.assertFalse(self.logged_in(h), b)
+
+    def test_no_share_creation_under_static_files(self):
+        self.two_links()
+        n = self.n_shares()
+        hck = self.ck(self.login("", "pa")[0])
+        jt = {"k": "zzzzzzzzzzzz", "vp": ["/priv/"], "pw": "", "exp": "", "perms": ["read"]}
+        for hdr, q in ACCOUNT_PW + [(hck, "")]:
+            st, h, b = self.post_json(self.url(".cpr/?share", q), jt, hdr)
+            self.assertNotEqual(st, 201, (hdr, q, b))
+        self.assertEqual(self.n_shares(), n)
+
+    def test_static_files_never_ban(self):
+        self.two_links()
+        self.conn.hsrv.gpwd = Garda("2,60,1")
+        for pw in ("pa", "pb", "nope1", "nope2"):
+            self.req("GET", ".cpr/ui.css?pw=" + pw)
+            self.post_form(".cpr/", [("act", "login"), ("cppwd", pw)])
+        self.assertFalse(self.banned())
+
+    def test_share_cookie_wins_over_an_account_login_in_a_header(self):
+        # a browser that keeps sending an account's basic auth or PW header
+        # (Inside) still opens a share link it unlocked, and keeps its cookie
+        self.two_links()
+        self.conn.hsrv.gpwd = Garda("2,60,1")
+        sck, b = self.login("shr/%s/" % (PKEY,), "spw")
+        self.assertTrue(sck, b)
+        f = "shr/%s/f.txt" % (PKEY,)
+        for hdr in ("PW: pa\r\n", basic("alice:pa"), basic("pa"), basic("bob:pb")):
+            for _ in range(3):
+                self.conn.freshen_pwd = 0
+                st, h, b = self.req("GET", f, hdr + self.ck(sck))
+                self.assertEqual((st, b), (200, b"d/f.txt"), hdr)
+                self.assertNotIn("cppwd=x", h, hdr)
+        self.assertFalse(self.banned())
+        # and the account login still opens nothing there
+        st, h, b = self.req("GET", "shr/%s/?h" % (KEY,), basic("alice:pa") + self.ck(sck))
+        self.assertNotIn(b"/priv", b)
+
+    def test_account_password_under_a_share_link_is_not_logged(self):
+        # neither in plain text (--log-badpwd 1) nor as a hash (2)
+        zb = hashlib.sha512(b"pa").digest()
+        hashed = "%" + ub64enc(zb[:12]).decode("ascii")
+        self.cinit()
+        self.share(PKEY, pw="spw")
+        for lbp in (1, 2):
+            self.args.log_badpwd = lbp
+            self.logs = []
+            self.login("shr/%s/" % (PKEY,), "pa")
+            self.get("shr/%s/f.txt?pw=pa" % (PKEY,))
+            self.get("shr/%s/f.txt" % (PKEY,), "PW: pa\r\n")
+            zs = "\n".join(str(x) for x in self.logs)
+            self.assertNotIn("'pa'", zs, lbp)
+            self.assertNotIn(hashed, zs, lbp)
+            self.assertNotIn("invalid password", zs, lbp)
+            self.assertEqual(zs.count("account login refused under a share link"), 3, zs)
+            # a wrong password, as before
+            self.logs = []
+            self.login("shr/%s/" % (PKEY,), "nope")
+            self.assertIn("invalid password", "\n".join(str(x) for x in self.logs))
 
     def test_dead_link_answers_as_before(self):
         self.two_links()
