@@ -96,6 +96,8 @@ cat >"$tmp/copyparty.conf" <<EOF
   shr-db: $tmp/db/shares.db
   ses-db: $tmp/db/sessions.db
   chpw-db: $tmp/db/chpw.json
+  # password changes on, as on the Pi, so rule 8 has one to refuse
+  chpw
 
 [accounts]
   check-admin: $pw_admin
@@ -490,7 +492,101 @@ else
     fail "Outside: a wrong share key gets copyparty's dead-link answer, as Inside" "Outside: $out, Inside: $ins"
 fi
 
-# 8. Inside reaches the whole site, answered as copyparty answers it directly. inside_as_direct
+# 8. under a share link, an account's password or login cookie counts for nothing: copyparty
+# answers it as a guest's, Inside and Outside alike (nginx can't tell the two kinds of password
+# apart). Outside from an address of its own, so that no other rule's wrong passwords add up
+# to a ban here (a ban's 403 would look like a refusal)
+outside_a=127.0.0.5
+# each way of sending an account login, one per line: the password in the query, the PW header,
+# basic auth, and the login cookie made Inside in rule 6
+logins() { printf '%s\n' query header basic cookie; }
+# lreq SRC HOW URL [curl args...]: req with that login added
+lreq() {
+    local src=$1 how=$2 url=$3
+    shift 3
+    case $how in
+    query) req $src "$@" "$url$(case $url in *\?*) echo '&' ;; *) echo '?' ;; esac)pw=$pw" ;;
+    header) req $src "$@" -H "PW: $pw" "$url" ;;
+    basic) req $src "$@" -u "check-user:$pw" "$url" ;;
+    cookie) req $src "$@" -b "$tmp/jar" "$url" ;;
+    esac
+}
+[ -s "$tmp/jar" ] || fail "rule 8 setup: the login cookie from rule 6" "none in $tmp/jar"
+# no account's data: no volume or home folder link, no account name. noacct NAME SRC URL
+noacct() {
+    local name=$1 src=$2 url=$3 how bad=
+    for how in $(logins); do
+        lreq $src $how "$url" -A "$ua" -o "$tmp/body"
+        [ -s "$tmp/body" ] || bad="$bad $how:empty"
+        grep -qE 'href="/(vol|home)/|check-user' "$tmp/body" && bad="$bad $how"
+    done
+    if [ -z "$bad" ]; then
+        pass "$name"
+    else
+        fail "$name" "account data with:$bad"
+    fi
+}
+noacct "Outside: an account login under a share link gets no control panel data" $outside_a "$https/share/$k_open/?h"
+noacct "Outside: an account login under /share gets no control panel data" $outside_a "$https/share/?h"
+noacct "Outside: an account login under a share link lists only the link" $outside_a "$https/share/$k_open/"
+noacct "Inside: an account login under a share link gets no control panel data" $inside "$https/share/$k_open/?h"
+# a share link behind a password stays locked to an account login, even its owner's
+bad=
+for how in $(logins); do
+    code=$(lreq $outside_a $how "$https/share/$k_pw/hello.txt" -A "$ua" -o /dev/null -w '%{http_code}')
+    [ "$code" = 403 ] || bad="$bad $how:$code"
+done
+if [ -z "$bad" ]; then
+    pass "Outside: an account login doesn't unlock a share link's password"
+else
+    fail "Outside: an account login doesn't unlock a share link's password" "got:$bad"
+fi
+# the account password at the share link's prompt sets no login cookie
+rm -f "$tmp/ajar"
+code=$(req $outside_a -A "$ua" -o /dev/null -w '%{http_code}' -c "$tmp/ajar" --form-string act=login \
+    --form-string "cppwd=$pw" --form-string uhash=x "$https/share/$k_pw/")
+if [ "$code" = 200 ] && ! grep -qP 'cppws\t(?!x$)' "$tmp/ajar"; then
+    pass "Outside: an account password at a share link's prompt is refused"
+else
+    fail "Outside: an account password at a share link's prompt is refused" "status $code; cookies: $(grep -c cppws "$tmp/ajar" 2>/dev/null)"
+fi
+# no password change: afterwards the old password still works, the new one doesn't (checked Inside)
+newpw=check-pw-changed
+bad=
+for how in $(logins); do
+    code=$(lreq $outside_a $how "$https/share/$k_open/" -A "$ua" -o "$tmp/body" -w '%{http_code}' \
+        --form-string act=chpw --form-string "pw=$newpw")
+    [ "$code" = 000 ] && bad="$bad $how:no-answer"
+    grep -q 'new password OK' "$tmp/body" && bad="$bad $how"
+done
+old=$(req $inside -o /dev/null -w '%{http_code}' -u "check-user:$pw" "$https/vol/hello.txt")
+new=$(req $inside -o /dev/null -w '%{http_code}' -u "check-user:$newpw" "$https/vol/hello.txt")
+if [ -z "$bad" ] && [ "$old" = 200 ] && [ "$new" != 200 ]; then
+    pass "Outside: an account login can't change its password under a share link"
+else
+    fail "Outside: an account login can't change its password under a share link" \
+        "changed with:${bad:- none}; old password $old, new $new"
+fi
+# no new share link, here of the account's home folder: refused, and the key opens nothing
+bad=
+opened=
+for how in $(logins); do
+    key=checkstolen-$how
+    code=$(lreq $outside_a $how "$https/share/$k_open/?share" -o "$tmp/body" -w '%{http_code}' \
+        -H 'Content-Type: application/json' \
+        -d '{"k":"'$key'","vp":["/home/check-user/"],"pw":"","exp":"","perms":["read"]}')
+    case $code in 000 | 201) bad="$bad $how:$code" ;; esac
+    code=$(req $inside -o /dev/null -w '%{http_code}' "$https/share/$key/mine.txt")
+    [ "$code" = 200 ] && opened="$opened $key"
+done
+if [ -z "$bad" ] && [ -z "$opened" ]; then
+    pass "Outside: an account login can't make a share link through a share link URL"
+else
+    fail "Outside: an account login can't make a share link through a share link URL" \
+        "made with:${bad:- none}; opens:${opened:- none}"
+fi
+
+# 9. Inside reaches the whole site, answered as copyparty answers it directly. inside_as_direct
 # NAME WANT PATH [curl args...]: the status through nginx from Inside must be WANT and equal
 # copyparty's own; an @ in PATH becomes "n" (through nginx) or "d" (direct), for writes
 inside_as_direct() {
@@ -517,7 +613,7 @@ inside_as_direct "MKCOL on a volume works" 201 /vol/dir-@/ -X MKCOL -u "check-us
 inside_as_direct "a share link opens" 200 "/share/$k_open/hello.txt"
 inside_as_direct "a wrong share key gets the dead-link answer" 403 /share/nosuchkey1234/
 
-# 9. no HTTP/2 (ALPN offers http/1.1 only) and no nginx version anywhere
+# 10. no HTTP/2 (ALPN offers http/1.1 only) and no nginx version anywhere
 alpn=$(openssl s_client -connect "127.0.0.1:$p_https" -servername "$domain" -alpn h2,http/1.1 \
     </dev/null 2>/dev/null | grep -E '^ALPN protocol|^No ALPN')
 if [ "$alpn" = "ALPN protocol: http/1.1" ]; then
@@ -538,7 +634,7 @@ else
     fail "responses carry no nginx version" "version ${ver:-unknown} in:$leak"
 fi
 
-# 10. rate limits: Outside per address (20/s, burst 200, 32 connections), Inside never. Last,
+# 11. rate limits: Outside per address (20/s, burst 200, 32 connections), Inside never. Last,
 # since a flood uses up its address's burst; each rule floods from an address of its own
 # (any 127.x works), so one rule's limit never leaks into another
 # flood SRC N URL [curl args...]: N requests as fast as one curl sends them (one connection,
