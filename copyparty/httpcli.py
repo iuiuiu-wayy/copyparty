@@ -38,6 +38,7 @@ from .bos import bos
 from .fork_grants import handle_egrant, handle_grant, http_request, tx_grants
 from .fork_harden import refuse_dot_name, refuse_short_key
 from .fork_shares import tx_shares_json
+from .fork_shr_auth import share_auth, share_login
 from .fork_tree import tree_ok, tree_virt
 from .qrkode import qr2svg, qrgen
 from .star import StreamTar
@@ -870,6 +871,7 @@ class HttpCli(object):
                     self.loud_reply("bad wopi token %s (%s)" % (wopi_a, ex), status=400)
                     return False
 
+        share_auth(self, cookie_pw)  # fork
         self.rvol = self.asrv.vfs.aread[self.uname]
         self.wvol = self.asrv.vfs.awrite[self.uname]
         self.avol = self.asrv.vfs.aadmin[self.uname]
@@ -3724,12 +3726,14 @@ class HttpCli(object):
         return True
 
     def get_pwd_cookie(self, pwd: str) -> tuple[bool, str]:
+        opwd = pwd  # fork
         uname = self.asrv.sesa.get(pwd)
         if not uname:
             hpwd = self.asrv.ah.hash(pwd)
             uname = self.asrv.iacct.get(hpwd)
             if uname:
                 pwd = self.asrv.ases.get(uname) or pwd
+        uname, pwd = share_login(self, uname, pwd, opwd)  # fork
         if uname and self.conn.hsrv.ipr:
             znm = self.conn.hsrv.ipr.get(uname)
             if znm and not znm.map(self.ip):

@@ -95,6 +95,10 @@ do **not** enable mimalloc (`LD_PRELOAD`) in the arm64 docker image; it crashes 
 * default password storage is **plain text** in the config (`ah-alg: none`). Turn on hashing
   (`ah-alg`, generate with `--ah-cli` / `--ah-gen`). Check argon2's memory cost on the Pi before
   choosing it over scrypt -- not measured yet.
+* HTTPS from the internet: nginx in front, where Outside (anything but the home's static IP)
+  opens only share links: the site file `contrib/nginx/fork-https-outside.conf`, checked locally
+  by `scripts/fork-https-check.sh`; putting it on the Pi and checking it by hand:
+  [docs/fork-https-outside-pi.md](docs/fork-https-outside-pi.md)
 * get copyparty only from official sources (github releases, PyPI, `copyparty/*` on docker hub,
   copyparty.eu). A "maintained fork… security patches… pip install" repo showed up in the fork
   list in Nov 2026 and was deleted soon after.
@@ -175,6 +179,25 @@ exactly upstream's. Our config turns it on. With it on (see `docs/adr/0002`):
 * not covered: SMB with `--smba` (upstream maps every SMB user to its internal superuser, which
   bypasses all permissions anyway); keep SMB off
 
+share links, always (not only with `harden`): under the share link area (`/share`,
+`/share/<key>/...`) only share link passwords count. An account password (login form, `?pw=`,
+`PW` header, basic auth), an account's login cookie, or an IdP / `--ipu` login is answered as a
+guest's there, so a leaked password or stolen cookie gives no control panel data, no password
+change and no new share link through a share link URL (https-outside spec, stories 39-42). An
+account password typed or sent there is refused like a wrong one and counts toward the password
+ban, logged only as "account login refused under a share link" (no password or hash, whatever
+`log-badpwd` says); a login cookie is ignored there (no ban, still logged in elsewhere). An
+account password in basic auth or the `PW` header next to a share link's cookie (a browser that
+keeps sending it) is ignored instead: the cookie counts, no ban. An account holder sees her own
+link as a guest does. copyparty's static files (`/.cpr/...`, open to Outside like the share
+links) take no login at all: everyone is a guest there and no password is looked at, logged or
+counted toward a ban, so no login, cookie or `POST /.cpr/?share` works through them;
+`/.cpr/metrics` (`--stats`) is left as upstream has it. A share-link password login still sets
+the one site-wide login cookie, replacing an account's in that browser (upstream does that too;
+scoping it to the share link needs upstream edits to cookie parsing). Code: `copyparty/fork_shr_auth.py`, tests:
+`tests/test_fork_shr_auth.py`; see
+[its upstream edit](#upstream-edit-share-links-take-only-their-own-passwords)
+
 share links (`/share/<key>/...`, used by guests), with `harden` on:
 
 * dotfiles inside a share link are 404, even if the owner gave the link `.` (allowed upstream when
@@ -226,7 +249,7 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [drag to move (dragmove.js)](#upstream-edit-drag-to-move-dragmovejs) | `scripts/sfx.ls` only |
 | [`--shr-adm` as a real list](#upstream-edit---shr-adm-as-a-real-list) | `svchub.py`, `httpcli.py`, `authsrv.py` |
 | [`harden`: dotfiles](#upstream-edit-harden-dotfiles) | `authsrv.py`, `httpcli.py`, `up2k.py`, `__main__.py` |
-| [share link password equal to an account password](#upstream-edit-share-link-password-equal-to-an-account-password) | `authsrv.py` |
+| [share links take only their own passwords](#upstream-edit-share-links-take-only-their-own-passwords) | `authsrv.py`, `httpcli.py`, `scripts/sfx.ls` |
 | [text listing of a folder with no path on disk](#upstream-edit-text-listing-of-a-folder-with-no-path-on-disk) | `httpcli.py` |
 | [`nospawn` with per-user volumes](#upstream-edit-nospawn-with-per-user-volumes) | `authsrv.py` |
 | [sidebar tree of a folder with no path on disk](#upstream-edit-sidebar-tree-of-a-folder-with-no-path-on-disk) | `httpcli.py`, `scripts/sfx.ls` |
@@ -447,20 +470,34 @@ every place this fork changes an upstream file, one section each below. On a mer
   signature changes. **If upstream adds a real dotfile block, take theirs** and remove the fork
   side
 
-### upstream edit: share link password equal to an account password
+### upstream edit: share links take only their own passwords
 
-- **what it is:** a share link password equal to an account's password no longer breaks every
-  reload (upstream loaded it as a made-up `s_...` account with the same password, which tripped
-  the "same password" check; reload/restart then failed for everyone). The share is now granted to
-  the account that owns that password, so the password logs in as that account and opens the share
-  (that account may not be the share's owner: if bob sets alice's password on a share, alice's
-  login also gets the share)
-- **upstream lines touched:** `authsrv.py` `_reload`, share loader: a `pw2u` password->account map
-  before the loop, and an `if s_pw and s_pw.strip() in pw2u: sun = pw2u[s_pw.strip()]` branch
-  before the `s_` account is made (both marked `# fork`)
-- **fork files:** `tests/test_fork_shr_pw.py`
-- **on conflict:** **take theirs if upstream fixes it**, then drop the `pw2u` line and the extra
-  branch; keep the test if it still passes
+- **what it is:** under the share link area, only a share link password logs in; any account
+  login is a guest there (see "share links, always" above). It also replaces the earlier fix
+  for a share link password equal to an account's password (upstream loaded it as a made-up
+  `s_...` account with the same password, which tripped the "same password" check and broke
+  every reload): that share link now gets the usual `s_...` user with a random password nobody
+  knows, and `fork_shr_auth` maps the share link password to it under the share link area only.
+  So the password opens the link, as that link's user, and still logs in as the account
+  everywhere else (with `no-ses` the login cookie is the password itself, so it does too)
+- **upstream lines touched:** `authsrv.py` `_reload`, share loader:
+  `pw2u = share_pw_start(vfs, acct)` before the loop, and in the `if s_pw and s_pw.strip() in
+  pw2u:` branch `sun = share_pw_user(vfs, acct, s_pw)` (all marked `# fork`; import after the
+  `fork_harden` one); `httpcli.py` `run`: `share_auth(self, cookie_pw)` right before
+  `self.rvol = self.asrv.vfs.aread[self.uname]`, after every upstream way of logging in (password,
+  cookie, basic auth, IdP, `--ipu`, wopi); `httpcli.py` `get_pwd_cookie`: `opwd = pwd` first, and
+  `uname, pwd = share_login(self, uname, pwd, opwd)` right after upstream's session/password
+  lookup (all marked `# fork`; import after the `fork_shares` one); `scripts/sfx.ls`:
+  `copyparty/fork_shr_auth.py`
+- **fork files:** `copyparty/fork_shr_auth.py`, `tests/test_fork_shr_auth.py`,
+  `tests/test_fork_shr_pw.py`; the Outside rules in `scripts/fork-https-check.sh`
+- **on conflict:** keep both sides. `share_pw_user` names the user as the share loader names
+  `s_...` users (`"s_%s" % ub64enc(sha512(pw))[4:16]`) and `share_pw_start` builds `pw2u` the
+  same way the old fork line did; if upstream changes either, follow it. If upstream adds a new
+  way of logging in after the `rvol` line, or renames `cookie_pw`, `self.pw` or the `ases`
+  session map, move the hook so it still runs last. **Take theirs if upstream fixes the equal
+  password case**, then drop `share_pw_user` and the branch, keeping `share_pw_start`'s
+  bookkeeping
 
 ### upstream edit: text listing of a folder with no path on disk
 
