@@ -602,7 +602,7 @@ else
 fi
 # straight at copyparty from 127.0.0.1, as through an SSH tunnel to the Pi (no nginx)
 got=$(curl -s --max-time 30 -o /dev/null -D - "http://127.0.0.1:$p_cpp/" --form-string act=login \
-    --form-string "cppwd=$pw_admin" --form-string uhash=x | grep -ciE '^set-cookie: cppwd=[^x;]')
+    --form-string "cppwd=$pw_admin" --form-string uhash=x | grep -ciP '^set-cookie: cppwd=(?!x;)')
 if [ "$got" = 1 ]; then
     pass "copyparty from 127.0.0.1 (an SSH tunnel): the admin account logs in"
 else
@@ -1109,6 +1109,22 @@ else
     fail "Outside: while one address is limited, another still gets through" \
         "flooded address: $still of 5 got 429; other address: $other of 10 got 200"
 fi
+# the same limit on what Outside reaches since login-outside: the login page, and an account
+# holder with the login cookie
+limited() { # NAME SRC URL [curl args...]: the burst of 200 gets 200, then 429
+    local name=$1 src=$2 url=$3 codes
+    shift 3
+    codes=$(flood $src 300 "$url" "$@")
+    if [ "$(sed -n 1,200p <<<"$codes" | count 200)" = 200 ] && [ "$(count 429 <<<"$codes")" -ge 1 ]; then
+        pass "$name"
+    else
+        fail "$name" "$(sort <<<"$codes" | uniq -c | tr -s ' ')"
+    fi
+}
+limited "Outside: a flood of login-page requests from one address gets 429 after its burst" \
+    127.0.0.16 "$https/?n=@"
+limited "Outside: a flood with the login cookie from one address gets 429 after its burst" \
+    127.0.0.17 "$https/vol/hello.txt?n=@" -b "$tmp/ojar"
 
 # a scanner (the Pi saw ~300 paths in 6 s from one address; sent faster here, so that the
 # refill of 20/s can't cover it), with no login cookie: nginx's answer for its burst (GET: the
