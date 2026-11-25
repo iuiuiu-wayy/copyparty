@@ -411,33 +411,81 @@ bare404() {
     fi
 }
 
-# 6. Outside reaches nothing but share links and static files: a bare 404 from nginx
-bare404 "Outside: / gives a bare 404" $outside "$https/"
-bare404 "Outside: the control panel gives a bare 404" $outside "$https/?h" -u "check-user:$pw"
-bare404 "Outside: a home folder gives a bare 404" $outside "$https/home/check-user/mine.txt" -u "check-user:$pw"
-bare404 "Outside: a volume gives a bare 404" $outside "$https/vol/hello.txt" -u "check-user:$pw"
-bare404 "Outside: the login POST gives a bare 404" $outside "$https/" \
-    --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
-# an account holder's login cookie, made Inside, is no use Outside
-req $inside -o /dev/null -c "$tmp/jar" "$https/" --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
-if grep -q cppws "$tmp/jar" 2>/dev/null; then
-    bare404 "Outside: a login cookie from Inside still gives a bare 404" $outside -b "$tmp/jar" "$https/home/check-user/"
+# 6. Outside, without a login cookie: / is copyparty's login page; anything else but share links
+# and static files stops at nginx (GET and HEAD: 302 to /; any other method: the bare 404)
+ua='Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0' # copyparty sends HTML to browsers
+# a rule that a request gets copyparty's login form: loginpage NAME SRC [curl args...]
+loginpage() {
+    local name=$1 got
+    shift
+    got=$(answer "$@" -A "$ua")
+    if [ "$got" = "200 copyparty" ] && grep -qF 'name="cppwd"' "$tmp/body"; then
+        pass "$name"
+    else
+        fail "$name" "got: $got, login form: $(grep -c 'name="cppwd"' "$tmp/body")"
+    fi
+}
+loginpage "Outside: / gives copyparty's login page" $outside "$https/"
+loginpage "Outside: the control panel at /?h gives copyparty's login page" $outside "$https/?h"
+# a rule that a request stops at nginx with a 302 to / (Location just "/", so the browser stays
+# on the name it used; copyparty never answers so on these paths): tologin NAME SRC [curl args...]
+tologin() {
+    local name=$1 code loc
+    shift
+    code=$(req "$@" -o /dev/null -D "$tmp/hdrs" -w '%{http_code}')
+    loc=$(tr -d '\r' <"$tmp/hdrs" | sed -n 's/^[Ll]ocation: //p')
+    if [ "$code" = 302 ] && [ "$loc" = / ]; then
+        pass "$name"
+    else
+        fail "$name" "got: $code, Location: ${loc:-none}"
+    fi
+}
+for how in GET HEAD; do
+    h=
+    [ $how = HEAD ] && h=-I
+    tologin "Outside, no login cookie: $how of a home folder gives 302 to /" $outside $h \
+        -u "check-user:$pw" "$https/home/check-user/mine.txt"
+    tologin "Outside, no login cookie: $how of a volume gives 302 to /" $outside $h -u "check-user:$pw" "$https/vol/hello.txt"
+    tologin "Outside, no login cookie: $how of a volume's control panel gives 302 to /" $outside $h \
+        -u "check-user:$pw" "$https/vol/?h"
+done
+# an everyday account logs in at / (the login page's form) and gets the HTTPS login cookie
+rm -f "$tmp/ojar"
+req $outside -o /dev/null -c "$tmp/ojar" "$https/" --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
+if grep -qP '\tcppws\t(?!x$)' "$tmp/ojar" 2>/dev/null; then
+    pass "Outside: an everyday account logs in at / and gets the HTTPS login cookie"
 else
-    fail "Outside: a login cookie from Inside still gives a bare 404" "no cookie from logging in Inside"
+    fail "Outside: an everyday account logs in at / and gets the HTTPS login cookie" "no cppws cookie"
+fi
+# an account holder's login cookie made Inside, for rule 8
+req $inside -o /dev/null -c "$tmp/jar" "$https/" --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
+# with the cookie from Outside: the home folder, a volume and the control panel open
+bad=
+for u in /home/check-user/mine.txt /vol/hello.txt /vol/?h; do
+    got=$(answer $outside -A "$ua" -b "$tmp/ojar" "$https$u")
+    [ "$got" = "200 copyparty" ] || bad="$bad $u:$got"
+done
+grep -qF 'home of check-user' <<<"$(req $outside -b "$tmp/ojar" "$https/home/check-user/mine.txt")" || bad="$bad home:content"
+if [ -z "$bad" ]; then
+    pass "Outside: with the login cookie, a home folder, a volume and a control panel open"
+else
+    fail "Outside: with the login cookie, a home folder, a volume and a control panel open" "got:$bad"
 fi
 bare404 "Outside: PUT on a volume gives a bare 404" $outside -T "$tmp/big.bin" -u "check-user:$pw" "$https/vol/out.bin"
 bare404 "Outside: DELETE on a volume gives a bare 404" $outside -X DELETE -u "check-user:$pw" "$https/vol/hello.txt"
 bare404 "Outside: PROPFIND on a volume gives a bare 404" $outside -X PROPFIND -H 'Depth: 1' -u "check-user:$pw" "$https/vol/"
 bare404 "Outside: MKCOL on a volume gives a bare 404" $outside -X MKCOL -u "check-user:$pw" "$https/vol/newdir/"
+bare404 "Outside: POST on a volume gives a bare 404" $outside -u "check-user:$pw" "$https/vol/" \
+    --form-string act=mkdir --form-string name=newdir
 # paths that only look like the share-link or static area
 for p in /share /.cpr /sharex//share/../vol/hello.txt /share/%2e%2e/vol/hello.txt /share/..%2fvol/hello.txt \
     /.cpr/../vol/hello.txt /.cpr/%2e%2e/vol/hello.txt /.cpr/..%2fvol/hello.txt /share%2f../vol/hello.txt; do
-    bare404 "Outside: $p gives a bare 404" $outside --path-as-is -u "check-user:$pw" "$https$p"
+    tologin "Outside, no login cookie: $p gives 302 to /" $outside --path-as-is -u "check-user:$pw" "$https$p"
 done
 # posing as Inside with a header changes nothing
-bare404 "Outside: a forged X-Forwarded-For with the home IP stays Outside" $outside \
+tologin "Outside: a forged X-Forwarded-For with the home IP stays Outside" $outside \
     -H "X-Forwarded-For: $inside" -u "check-user:$pw" "$https/vol/hello.txt"
-bare404 "Outside: a forged X-Real-IP with the home IP stays Outside" $outside \
+tologin "Outside: a forged X-Real-IP with the home IP stays Outside" $outside \
     -H "X-Real-IP: $inside" -u "check-user:$pw" "$https/vol/hello.txt"
 # the 443 server answers any Host and SNI (a scanner sends the bare IP): the same rules hold
 noname() { # SRC HOST [curl args...]: a request on 443 with HOST as both Host and SNI
@@ -446,17 +494,19 @@ noname() { # SRC HOST [curl args...]: a request on 443 with HOST as both Host an
     curl -sk --max-time 30 --interface "$src" --resolve "$h:$p_https:127.0.0.1" "$@"
 }
 for h in 127.0.0.1 unknown.example; do
-    got=$(noname $outside $h -o "$tmp/body" -w '%{http_code}' "https://$h:$p_https/")
+    got=$(noname $outside $h -o /dev/null -D "$tmp/hdrs" -w '%{http_code}' "https://$h:$p_https/vol/hello.txt")
+    got="$got $(tr -d '\r' <"$tmp/hdrs" | sed -n 's/^[Ll]ocation: //p')"
+    lp=$(noname $outside $h -A "$ua" "https://$h:$p_https/" | grep -c 'name="cppwd"')
     body=$(noname $outside $h "https://$h:$p_https/share/$k_open/hello.txt")
-    if [ "$got" = 404 ] && grep -qF '<center>nginx</center>' "$tmp/body" && [ "$body" = "hello from copyparty" ]; then
-        pass "Outside: with $h as Host and SNI, / gives a bare 404 and a share link opens"
+    if [ "$got" = "302 /" ] && [ "$lp" -ge 1 ] && [ "$body" = "hello from copyparty" ]; then
+        pass "Outside: with $h as Host and SNI, / is the login page, a volume 302s and a share link opens"
     else
-        fail "Outside: with $h as Host and SNI, / gives a bare 404 and a share link opens" "/ gave $got; share: ${body:0:60}"
+        fail "Outside: with $h as Host and SNI, / is the login page, a volume 302s and a share link opens" \
+            "volume: $got; login forms on /: $lp; share: ${body:0:60}"
     fi
 done
 
 # 7. Outside, a guest gets everything a share link gives
-ua='Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0' # copyparty sends HTML to browsers
 # every static file and share-link URL the page in $tmp/body refers to loads: assets_load SRC
 # (not "/share/" itself, the breadcrumb's root, which copyparty refuses to everyone)
 assets_load() {
@@ -905,19 +955,26 @@ else
 fi
 
 # a scanner (the Pi saw ~300 paths in 6 s from one address; sent faster here, so that the
-# refill of 20/s can't cover it): nginx's 404 for its burst, then 429, and none of it reaches
-# copyparty
-codes=$(flood 127.0.0.12 300 "$https/fork-scan-@/.env")
-n404=$(count 404 <<<"$codes")
-n429=$(count 429 <<<"$codes")
-logged=$(grep -c fork-scan- "$tmp/copyparty.log")
-if [ "$(sed -n 1,200p <<<"$codes" | count 404)" = 200 ] && [ "$n429" -ge 1 ] &&
-    [ $((n404 + n429)) = 300 ] && [ "$logged" = 0 ]; then
-    pass "Outside: a scanner's burst of non-share paths gets 404, then 429, and never reaches copyparty"
-else
-    fail "Outside: a scanner's burst of non-share paths gets 404, then 429, and never reaches copyparty" \
-        "$(sort <<<"$codes" | uniq -c | tr -s ' '); copyparty logged $logged"
-fi
+# refill of 20/s can't cover it), with no login cookie: nginx's answer for its burst (GET: the
+# 302 to /; POST: the bare 404), then 429, and none of it reaches copyparty
+scan() { # NAME SRC WANT [curl args...]
+    local name=$1 src=$2 want=$3 codes nwant n429 logged
+    shift 3
+    codes=$(flood $src 300 "$https/fork-scan-$src-@/.env" "$@")
+    nwant=$(count $want <<<"$codes")
+    n429=$(count 429 <<<"$codes")
+    logged=$(grep -c "fork-scan-$src-" "$tmp/copyparty.log")
+    if [ "$(sed -n 1,200p <<<"$codes" | count $want)" = 200 ] && [ "$n429" -ge 1 ] &&
+        [ $((nwant + n429)) = 300 ] && [ "$logged" = 0 ]; then
+        pass "$name"
+    else
+        fail "$name" "$(sort <<<"$codes" | uniq -c | tr -s ' '); copyparty logged $logged"
+    fi
+}
+scan "Outside: a scanner's GET burst of non-share paths gets 302, then 429, and never reaches copyparty" \
+    127.0.0.12 302
+scan "Outside: a scanner's POST burst of non-share paths gets 404, then 429, and never reaches copyparty" \
+    127.0.0.15 404 -d x=1
 
 # Inside, the same flood is never limited (the whole household is that one address)
 codes=$(flood $inside 300 "$https/share/$k_open/hello.txt?n=@")
