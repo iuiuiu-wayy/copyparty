@@ -422,7 +422,8 @@ bare404() {
     fi
 }
 
-# 6. Outside, without a login cookie: / is copyparty's login page; anything else but share links
+# 6. Outside, without a login cookie: GET, HEAD and POST of / reach copyparty (its login page; any
+# other method the bare 404); anything else but share links
 # and static files stops at nginx (GET and HEAD: 302 to /; any other method: the bare 404)
 ua='Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0' # copyparty sends HTML to browsers
 # a rule that a request gets copyparty's login form: loginpage NAME SRC [curl args...]
@@ -438,6 +439,22 @@ loginpage() {
 }
 loginpage "Outside: / gives copyparty's login page" $outside "$https/"
 loginpage "Outside: the control panel at /?h gives copyparty's login page" $outside "$https/?h"
+# at / without a login cookie only GET, HEAD and POST (the login page and its form) reach
+# copyparty; any other method gets the bare 404, so a cookieless WebDAV client stops at nginx
+code=$(req $outside -I -o /dev/null -w '%{http_code}' "$https/")
+if [ "$code" = 200 ]; then
+    pass "Outside, no login cookie: HEAD of / reaches copyparty"
+else
+    fail "Outside, no login cookie: HEAD of / reaches copyparty" "got: $code"
+fi
+bare404 "Outside, no login cookie: PROPFIND of / gives a bare 404" $outside -X PROPFIND -H 'Depth: 1' \
+    -u "check-user:$pw" "$https/"
+bare404 "Outside, no login cookie: PROPFIND of /?ls gives a bare 404" $outside -X PROPFIND -H 'Depth: 1' "$https/?ls"
+bare404 "Outside, no login cookie: PUT of / gives a bare 404" $outside -X PUT --data-binary @"$tmp/srv/vol/hello.txt" \
+    -u "check-user:$pw" "$https/"
+for how in MKCOL DELETE OPTIONS LOCK; do
+    bare404 "Outside, no login cookie: $how of / gives a bare 404" $outside -X $how -u "check-user:$pw" "$https/"
+done
 # a rule that a request stops at nginx with a 302 to / (Location just "/", so the browser stays
 # on the name it used; copyparty never answers so on these paths): tologin NAME SRC [curl args...]
 tologin() {
@@ -526,6 +543,13 @@ if [ "$put" = 201 ] && [ "$del" = 200 ]; then
     pass "Outside: with the login cookie, PUT and DELETE on a volume work"
 else
     fail "Outside: with the login cookie, PUT and DELETE on a volume work" "PUT $put, DELETE $del"
+fi
+# with the cookie, any method at / reaches copyparty again (PROPFIND lists the root)
+got=$(answer $outside -b "$tmp/ojar" -X PROPFIND -H 'Depth: 1' "$https/")
+if [ "$got" = "207 copyparty" ]; then
+    pass "Outside: with the login cookie, PROPFIND of / reaches copyparty"
+else
+    fail "Outside: with the login cookie, PROPFIND of / reaches copyparty" "got: $got"
 fi
 # a made-up cookie value passes nginx, and copyparty answers it as a guest's: no home folder
 got=$(answer $outside -A "$ua" -b cppws=fork-check-made-up-cookie "$https/home/check-user/mine.txt")
@@ -930,6 +954,8 @@ inside_as_direct "/ opens" 200 /
 inside_as_direct "the control panel opens" 200 "/?h" -u "check-user:$pw"
 inside_as_direct "a home folder opens" 200 /home/check-user/mine.txt -u "check-user:$pw"
 inside_as_direct "a volume opens" 200 /vol/hello.txt -u "check-user:$pw"
+inside_as_direct "PROPFIND on / works" 207 / -X PROPFIND -H 'Depth: 1' -u "check-user:$pw"
+inside_as_direct "OPTIONS on / works" 200 / -X OPTIONS
 inside_as_direct "the login POST logs in" 200 / --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
 inside_as_direct "PUT on a volume works" 201 /vol/in-@.txt -T "$tmp/small.txt" -u "check-user:$pw"
 inside_as_direct "DELETE on a volume works" 200 /vol/in-@.txt -X DELETE -u "check-user:$pw"
@@ -1159,6 +1185,14 @@ scan "Outside: a scanner's GET burst of non-share paths gets 302, then 429, and 
     127.0.0.12 302
 scan "Outside: a scanner's POST burst of non-share paths gets 404, then 429, and never reaches copyparty" \
     127.0.0.15 404 -d x=1
+# and the bare 404 of a cookieless PROPFIND of / comes after the rate limits too
+codes=$(flood 127.0.0.18 300 "$https/?n=@" -X PROPFIND -H 'Depth: 1')
+if [ "$(sed -n 1,200p <<<"$codes" | count 404)" = 200 ] && [ "$(count 429 <<<"$codes")" -ge 1 ] &&
+    [ $(($(count 404 <<<"$codes") + $(count 429 <<<"$codes"))) = 300 ]; then
+    pass "Outside: a burst of cookieless PROPFINDs of / gets 404, then 429"
+else
+    fail "Outside: a burst of cookieless PROPFINDs of / gets 404, then 429" "$(sort <<<"$codes" | uniq -c | tr -s ' ')"
+fi
 
 # Inside, the same flood is never limited (the whole household is that one address)
 codes=$(flood $inside 300 "$https/share/$k_open/hello.txt?n=@")
