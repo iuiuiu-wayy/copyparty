@@ -100,6 +100,9 @@ cat >"$tmp/copyparty.conf" <<EOF
   chpw-db: $tmp/db/chpw.json
   # password changes on, as on the Pi, so rule 8 has one to refuse
   chpw
+  # as on the Pi (login-outside): the admin account logs in only from Inside (the home IP) or
+  # from 127.0.0.1 (an SSH tunnel to the Pi); rule 6b
+  ipr: $inside/32,127.0.0.1/32=check-admin
   # log the headers nginx passes on (rule 8b); the marker first, to find a request's lines
   ihead: x-fork-marker
   ihead: authorization
@@ -268,12 +271,12 @@ logged_ip() {
 
 # an up2k upload through nginx from a source address, all chunks stitched into one POST like
 # copyparty's own clients do: up2k SRC DIR-URL FILE NAME [PASSWORD of check-user; none for a
-# guest]; prints "ok" or what went wrong
+# guest] [LOGIN-COOKIE value, sent as cppws]; prints "ok" or what went wrong
 up2k() {
-    "$py" -I - "$1" "$p_https" "$domain" "$2" "$3" "$4" "${5:-}" <<'EOF'
+    "$py" -I - "$1" "$p_https" "$domain" "$2" "$3" "$4" "${5:-}" "${6:-}" <<'EOF'
 import base64, hashlib, http.client, json, os, ssl, sys
 
-src, port, host, url, fn, name, pw = sys.argv[1:]
+src, port, host, url, fn, name, pw, ck = sys.argv[1:]
 size = os.path.getsize(fn)
 csz = 1024 * 1024  # copyparty's up2k_chunksize() for files up to 256 MiB
 with open(fn, "rb") as f:
@@ -290,6 +293,8 @@ def req(method, url, body, hdrs):
     if pw:
         zs = base64.b64encode(("check-user:" + pw).encode("utf-8")).decode("ascii")
         hdrs["Authorization"] = "Basic " + zs
+    if ck:
+        hdrs["Cookie"] = "cppws=" + ck
     c.request(method, url, body, hdrs)
     r = c.getresponse()
     return r.status, r.read().decode("utf-8", "replace")
@@ -470,6 +475,107 @@ if [ -z "$bad" ]; then
     pass "Outside: with the login cookie, a home folder, a volume and a control panel open"
 else
     fail "Outside: with the login cookie, a home folder, a volume and a control panel open" "got:$bad"
+fi
+# and an up2k upload (larger than one chunk) into the home folder arrives
+head -c $((3 * 1024 * 1024 + 456)) /dev/urandom >"$tmp/out.bin"
+want_o=$(sha256sum <"$tmp/out.bin" | cut -d' ' -f1)
+ck=$(awk '$6 == "cppws" { print $7 }' "$tmp/ojar")
+got=$(up2k $outside /home/check-user/ "$tmp/out.bin" out.bin "" "$ck" 2>&1)
+back=$(req $outside -b "$tmp/ojar" "$https/home/check-user/out.bin" | sha256sum | cut -d' ' -f1)
+if [ "$got" = ok ] && [ "$back" = "$want_o" ]; then
+    pass "Outside: with the login cookie, a 3 MiB up2k upload (4 chunks) into the home folder arrives"
+else
+    fail "Outside: with the login cookie, a 3 MiB up2k upload (4 chunks) into the home folder arrives" "${got:0:200}"
+fi
+# and writes: PUT, then DELETE, on a volume
+echo "a small upload" >"$tmp/small.txt"
+put=$(req $outside -o /dev/null -w '%{http_code}' -b "$tmp/ojar" -T "$tmp/small.txt" "$https/vol/out-put.txt")
+del=$(req $outside -o /dev/null -w '%{http_code}' -b "$tmp/ojar" -X DELETE "$https/vol/out-put.txt")
+if [ "$put" = 201 ] && [ "$del" = 200 ]; then
+    pass "Outside: with the login cookie, PUT and DELETE on a volume work"
+else
+    fail "Outside: with the login cookie, PUT and DELETE on a volume work" "PUT $put, DELETE $del"
+fi
+# a made-up cookie value passes nginx, and copyparty answers it as a guest's: no home folder
+got=$(answer $outside -A "$ua" -b cppws=fork-check-made-up-cookie "$https/home/check-user/mine.txt")
+case $got in
+*" copyparty")
+    if [ "${got%% *}" != 200 ] && ! grep -qF 'home of check-user' "$tmp/body"; then
+        pass "Outside: a made-up login cookie reaches copyparty, which answers as for a guest"
+    else
+        fail "Outside: a made-up login cookie reaches copyparty, which answers as for a guest" "got: $got, with the file"
+    fi
+    ;;
+*) fail "Outside: a made-up login cookie reaches copyparty, which answers as for a guest" "got: $got" ;;
+esac
+
+# 6b. the admin account logs in only Inside, or straight at copyparty from 127.0.0.1 (an SSH
+# tunnel to the Pi; ipr in copyparty's config). Through nginx, Outside, it is refused like a
+# wrong password, whatever the request claims; tested from Outside addresses other than
+# 127.0.0.1, so that the tunnel's exception can't hide a hole
+# login SRC [curl args...]: log in as the admin account at / through nginx; prints the
+# login cookie's value, empty if refused (the jar is left in $tmp/adjar)
+login() {
+    local src=$1
+    shift
+    rm -f "$tmp/adjar"
+    req $src -o /dev/null -c "$tmp/adjar" "$@" "$https/" --form-string act=login \
+        --form-string "cppwd=$pw_admin" --form-string uhash=x
+    awk '$6 == "cppws" && $7 != "x" { print $7 }' "$tmp/adjar"
+}
+n_ipr() { sed 's/\x1b\[[0-9;]*m//g' "$tmp/copyparty.log" | grep -c 'rejected by --ipr'; }
+before=$(n_ipr)
+got=$(login $outside2)
+sleep 0.3 # copyparty logs from a thread
+if [ -z "$got" ] && [ "$(n_ipr)" -gt "$before" ]; then
+    pass "Outside: the admin account's login at / is refused (copyparty logs: rejected by --ipr)"
+else
+    fail "Outside: the admin account's login at / is refused (copyparty logs: rejected by --ipr)" \
+        "cookie: ${got:-none}; ipr rejections logged: $before, then $(n_ipr)"
+fi
+got=$(login 127.0.0.11 -H 'X-Forwarded-For: 127.0.0.1' -H 'X-Real-IP: 127.0.0.1')
+if [ -z "$got" ]; then
+    pass "Outside: a forged X-Forwarded-For: 127.0.0.1 doesn't let the admin account log in"
+else
+    fail "Outside: a forged X-Forwarded-For: 127.0.0.1 doesn't let the admin account log in" "got a login cookie"
+fi
+# each refusal counts as a wrong password: past ban-pw's 9, copyparty bans that address (and
+# only that one). copyparty doesn't count a password sent again straight after itself, so the
+# admin account's 5 logins take turns with 5 different wrong passwords: 10 counted only if the
+# admin ones count too. From an address of its own, used by no other rule
+for i in $(seq 5); do
+    login 127.0.0.21 >/dev/null
+    req 127.0.0.21 -o /dev/null "$https/" --form-string act=login --form-string "cppwd=check-wrong-$i" \
+        --form-string uhash=x
+done
+code=$(req 127.0.0.21 -o "$tmp/body" -w '%{http_code}' "$https/")
+other=$(req 127.0.0.22 -o /dev/null -w '%{http_code}' "$https/")
+if [ "$code" = 403 ] && grep -qF 'thank you for playing' "$tmp/body" && [ "$other" = 200 ]; then
+    pass "Outside: admin-account logins count toward copyparty's ban (ban-pw), for that address only"
+else
+    fail "Outside: admin-account logins count toward copyparty's ban (ban-pw), for that address only" \
+        "after: $code $(head -c 60 "$tmp/body"); another address: $other"
+fi
+got=$(login $inside)
+if [ -n "$got" ]; then
+    pass "Inside: the admin account logs in at /"
+else
+    fail "Inside: the admin account logs in at /" "no login cookie"
+fi
+# the admin account's cookie, made Inside, is a guest's Outside
+code=$(req $outside2 -o "$tmp/body" -w '%{http_code}' -b "$tmp/adjar" "$https/vol/?ls")
+if [ "$code" != 200 ] && ! grep -qF hello.txt "$tmp/body"; then
+    pass "Outside: the admin account's login cookie from Inside counts for nothing"
+else
+    fail "Outside: the admin account's login cookie from Inside counts for nothing" "got: $code"
+fi
+# straight at copyparty from 127.0.0.1, as through an SSH tunnel to the Pi (no nginx)
+got=$(curl -s --max-time 30 -o /dev/null -D - "http://127.0.0.1:$p_cpp/" --form-string act=login \
+    --form-string "cppwd=$pw_admin" --form-string uhash=x | grep -ciE '^set-cookie: cppwd=[^x;]')
+if [ "$got" = 1 ]; then
+    pass "copyparty from 127.0.0.1 (an SSH tunnel): the admin account logs in"
+else
+    fail "copyparty from 127.0.0.1 (an SSH tunnel): the admin account logs in" "no login cookie"
 fi
 bare404 "Outside: PUT on a volume gives a bare 404" $outside -T "$tmp/big.bin" -u "check-user:$pw" "$https/vol/out.bin"
 bare404 "Outside: DELETE on a volume gives a bare 404" $outside -X DELETE -u "check-user:$pw" "$https/vol/hello.txt"
@@ -782,7 +888,6 @@ inside_as_direct "the control panel opens" 200 "/?h" -u "check-user:$pw"
 inside_as_direct "a home folder opens" 200 /home/check-user/mine.txt -u "check-user:$pw"
 inside_as_direct "a volume opens" 200 /vol/hello.txt -u "check-user:$pw"
 inside_as_direct "the login POST logs in" 200 / --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
-echo "a small upload" >"$tmp/small.txt"
 inside_as_direct "PUT on a volume works" 201 /vol/in-@.txt -T "$tmp/small.txt" -u "check-user:$pw"
 inside_as_direct "DELETE on a volume works" 200 /vol/in-@.txt -X DELETE -u "check-user:$pw"
 inside_as_direct "PROPFIND on a volume works" 207 /vol/ -X PROPFIND -H 'Depth: 1' -u "check-user:$pw"
