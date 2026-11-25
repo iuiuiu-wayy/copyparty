@@ -916,6 +916,26 @@ else
     fail "responses carry no nginx version" "version ${ver:-unknown} in:$leak"
 fi
 
+# 10b. HSTS: every HTTPS answer, copyparty's and nginx's own, tells browsers to use HTTPS only
+# for a year, for this name only (no includeSubDomains); port 80 sends no such header
+hsts() { # SRC [curl args...]: the Strict-Transport-Security headers of the answer, one per line
+    req "$@" -o /dev/null -D - | tr -d '\r' | grep -i '^strict-transport-security:'
+}
+bad=
+for c in "$outside $https/" "$outside $https/share/$k_open/hello.txt" "$outside $https/.cpr/ui.css" \
+    "$outside $https/vol/hello.txt" "$outside -X DELETE $https/vol/hello.txt" "$inside -u check-user:$pw $https/vol/hello.txt"; do
+    # shellcheck disable=SC2086 # on purpose: each case is words
+    got=$(hsts $c)
+    [ "$got" = "Strict-Transport-Security: max-age=31536000" ] || bad="$bad [${c#* }: ${got:-none}]"
+done
+got=$(hsts $outside "$http/")
+[ -z "$got" ] || bad="$bad [port 80: $got]"
+if [ -z "$bad" ]; then
+    pass "HTTPS answers carry Strict-Transport-Security: max-age=31536000 (port 80 none)"
+else
+    fail "HTTPS answers carry Strict-Transport-Security: max-age=31536000 (port 80 none)" "${bad:0:300}"
+fi
+
 # 11. certbot's renewal (--nginx) still passes Let's Encrypt's HTTP-01 challenge on port 80.
 # For each renewal certbot edits the site file for a moment, then puts it back byte for byte:
 # into every server block whose server_name holds the domain (its choose_auth_vhosts) it adds
