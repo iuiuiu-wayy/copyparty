@@ -8,6 +8,10 @@ A self-hosted file server for a household. Each account holder has their own spa
 The person who runs the server and edits its config: who has an account, which groups exist, and which volumes exist.
 _Avoid_: root, superuser
 
+**Admin account**:
+The account the admin logs in with to do admin work (the control panel, other people's folders), kept apart from their everyday account.
+_Avoid_: admin (on its own, when meaning the account)
+
 **Account holder**:
 Someone with a username and password on the server.
 _Avoid_: user (ambiguous), member
@@ -18,6 +22,16 @@ _Avoid_: non-user, anonymous user, visitor
 
 **Group**:
 A named set of account holders, defined by the admin (e.g. `@family`).
+
+## Where people connect from
+
+**Inside**:
+Connecting from the home network. Account holders can log in and use everything their accounts allow.
+_Avoid_: local, LAN (as a name for this), internal
+
+**Outside**:
+Connecting from anywhere that is not Inside. Guests reach only share links; account holders can also log in and use what their accounts allow, except the admin account, which logs in only Inside.
+_Avoid_: public, remote, internet side
 
 ## Spaces
 
