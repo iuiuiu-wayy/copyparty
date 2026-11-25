@@ -102,18 +102,31 @@ do **not** enable mimalloc (`LD_PRELOAD`) in the arm64 docker image; it crashes 
   * 2026-11-21 (https-outside): Outside opened only share links.
   * 2026-11-23 (login-outside) reverses part of that: Outside also gets copyparty's login page at
     `/`, so account holders reach their own files away from home. Guests still reach only share
-    links, where account passwords and cookies count for nothing. Without a login cookie, nginx
-    answers everything but `/`, share links and static files itself (302 to `/`, or 404), so the
-    scanners that found the domain within a minute of its certificate mostly never reach
-    copyparty. HSTS tells browsers to use only HTTPS.
+    links, where account passwords and cookies count for nothing. Without a login cookie, what
+    reaches copyparty from Outside is: GET, HEAD and POST of `/` (with any query: the login page
+    and its form), the share area, and GET/HEAD of the static files (`/.cpr/`); nginx answers
+    everything else itself (GET/HEAD elsewhere: 302 to `/`; any other method, PROPFIND, PUT or
+    OPTIONS of `/` included: a bare 404, after the rate limits). HSTS tells browsers to use only
+    HTTPS.
+  * only browser logins work Outside: the gate passes a request on the `cppws` cookie only, so a
+    client that logs in with basic auth or a `PW` header (WebDAV, rclone, u2c, phone apps) gets
+    the 302 or the 404 beyond `/` and share links, whatever its password. Those work Inside only.
   * the admin account logs in only Inside or through an SSH tunnel to the Pi (`ipr`); from
     Outside its login is refused like a wrong password and counts toward the ban (`ban-pw`).
     Logins end after a week unused in the browser (`logout: 168`; a copied session stays valid
     until that account's password changes), new passwords need 12 characters (`chpw-len: 12`;
     passwords set in the config are not checked, so keep them long and random by hand).
-  * accepted risks: the whole copyparty app, the fork's code included, is reachable by anyone
-    with a login, so the weakest everyday password is the way in; and there is no deadline yet
-    for getting copyparty's security releases onto the Pi.
+  * accepted risks:
+    * the whole copyparty app, the fork's code included, is reachable by anyone: nginx can't
+      check the `cppws` cookie, so any made-up value passes the gate and copyparty answers it as
+      a guest. So nothing outside share links may be open to guests: no volume may give `*` any
+      permission (the Pi checklist's step 0 checks it). With a real login, the weakest everyday
+      password is the way in.
+    * `ipr` allows the admin account's login from the home IP, and everything at home is that IP
+      (guest Wi-Fi, ESP boards; NAT loopback), so anyone at home can try the admin password; and
+      more than 9 wrong tries in an hour (`ban-pw`) ban that one IP, so the whole household, for
+      a day (a copyparty restart lifts it).
+    * there is no deadline yet for getting copyparty's security releases onto the Pi.
 * get copyparty only from official sources (github releases, PyPI, `copyparty/*` on docker hub,
   copyparty.eu). A "maintained fork… security patches… pip install" repo showed up in the fork
   list in Nov 2026 and was deleted soon after.

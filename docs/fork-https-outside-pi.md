@@ -24,6 +24,11 @@ In the commands, put your own values in place of these (the repo is public, so i
 **Inside** is a phone on the home Wi-Fi: the router's NAT loopback makes every device at home reach
 the domain from `203.0.113.7`. **Outside** is the same phone on mobile data, Wi-Fi off.
 
+Outside, only a browser login works: nginx lets a request past `/` and share links only with
+copyparty's login cookie, which only the login page gives. Clients that log in with basic auth or
+a `PW` header (WebDAV, rclone, u2c, phone apps) get a 302 or 404 there whatever their password;
+use them Inside.
+
 ## 0. Before you start
 
 Each line: the command, then what it must show. Stop at the first one that doesn't.
@@ -68,16 +73,24 @@ Each line: the command, then what it must show. Stop at the first one that doesn
    one its owner set at the control panel since) has 12 or more characters and is random (say,
    from a password manager), not a word or a name. Outside, the weakest one is the way in. Have
    its owner change any that isn't, Inside, at the control panel (`/?h`), before going on.
-7. nginx is nginx.org's stable package, 1.30.7 or later: `nginx -v` shows `nginx/1.30.7` or newer.
-8. certbot has its files: `sudo certbot certificates` lists `files.example.org` with an expiry date,
+7. No volume is open to guests (`*`): nginx can't check a login cookie, so anyone on the internet
+   who sends a made-up one reaches copyparty and gets a guest's view of the whole site, not just
+   share links. Run
+   `sudo awk '/^[ \t]*\[/ { v = /^[ \t]*\[\// } v && /^[ \t]*[rwmdgGhaA.]+:.*\*/' /etc/copyparty.conf`
+   (it prints the permission lines, inside `[/...]` volume sections, that name `*`): it must
+   show nothing. If it shows a line such as `r: *`, remove `*` from it (`sudoedit
+   /etc/copyparty.conf`; share links don't need it) then `sudo systemctl restart copyparty`,
+   and run it again.
+8. nginx is nginx.org's stable package, 1.30.7 or later: `nginx -v` shows `nginx/1.30.7` or newer.
+9. certbot has its files: `sudo certbot certificates` lists `files.example.org` with an expiry date,
    and `ls /etc/letsencrypt/options-ssl-nginx.conf /etc/letsencrypt/ssl-dhparams.pem` shows both.
    Renewal goes through nginx: `sudo grep -E '^(authenticator|installer)' /etc/letsencrypt/renewal/files.example.org.conf`
    shows `authenticator = nginx` and `installer = nginx`; `systemctl list-timers | grep certbot`
    shows the timer.
-9. No other site file uses the site file's names (they are nginx-wide):
-   `sudo grep -rln 'fork_' /etc/nginx/` shows nothing, or only `/etc/nginx/conf.d/copyparty.conf`
-   (an earlier version of this file).
-10. Inside, make two share links of a folder with a few photos in it: one with uploads allowed
+10. No other site file uses the site file's names (they are nginx-wide):
+    `sudo grep -rln 'fork_' /etc/nginx/` shows nothing, or only `/etc/nginx/conf.d/copyparty.conf`
+    (an earlier version of this file).
+11. Inside, make two share links of a folder with a few photos in it: one with uploads allowed
    (`<key>`), one with a password (`<locked>`). Note both URLs.
 
 ## 1. Keep a copy of today's file
@@ -193,6 +206,7 @@ From a laptop Outside (on a phone's hotspot or another network), the header and 
 curl -sI https://files.example.org/ | grep -i '^strict-transport'
 curl -sI https://files.example.org/home/<name>/ | grep -iE '^(HTTP|location)'
 curl -s -o /dev/null -w '%{http_code}\n' -X POST https://files.example.org/home/<name>/
+curl -s -o /dev/null -w '%{http_code}\n' -X PROPFIND -u '<name>:<her password>' https://files.example.org/
 curl -s -o /dev/null -w '%{http_code}\n' -H 'X-Forwarded-For: 203.0.113.7' https://files.example.org/home/<name>/
 curl -s -o /dev/null -w '%{http_code}\n' -H 'X-Real-IP: 203.0.113.7' https://files.example.org/home/<name>/
 curl -sI https://files.example.org/share/<key>/ | grep -i '^server'
@@ -206,6 +220,8 @@ curl -s -o /dev/null -w '%{http_code}\n' https://files.example.org/.cpr/ui.css
   HTTPS for the domain from now on
 - `HTTP/1.1 302` and `Location: /`: without a login, a folder sends you to the login page
 - `404`: anything but GET and HEAD without a login stops at nginx
+- `404`: at `/` too, anything but GET, HEAD and POST without the login cookie stops at nginx, and a
+  WebDAV password (basic auth) doesn't count: such clients work Inside only
 - `302`, `302`: a forged header doesn't make Outside Inside
 - `Server: nginx`, with no version number
 - `1.1`: no HTTP/2
