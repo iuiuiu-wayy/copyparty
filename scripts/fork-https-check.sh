@@ -593,6 +593,18 @@ if [ -n "$got" ]; then
 else
     fail "Inside: the admin account logs in at /" "no login cookie"
 fi
+# and with that cookie opens the control panel as the admin: its admin panel (with "reload
+# cfg"), which a guest's control panel doesn't have
+adm=$(answer $inside -A "$ua" -b "$tmp/adjar" "$https/?h")
+grep -qF 'admin panel:' "$tmp/body" && grep -qF '?reload=cfg' "$tmp/body" && adm="$adm admin-panel"
+gst=$(answer $inside -A "$ua" "$https/?h")
+grep -qF 'admin panel:' "$tmp/body" && gst="$gst admin-panel"
+if [ "$adm" = "200 copyparty admin-panel" ] && [ "$gst" = "200 copyparty" ]; then
+    pass "Inside: with the admin account's login cookie, the control panel shows the admin panel"
+else
+    fail "Inside: with the admin account's login cookie, the control panel shows the admin panel" \
+        "admin: $adm; guest: $gst"
+fi
 # the admin account's cookie, made Inside, is a guest's Outside
 code=$(req $outside2 -o "$tmp/body" -w '%{http_code}' -b "$tmp/adjar" "$https/vol/?ls")
 if [ "$code" != 200 ] && ! grep -qF hello.txt "$tmp/body"; then
