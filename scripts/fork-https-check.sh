@@ -26,6 +26,7 @@ pw_admin=check-pw-admin
 k_open=checkopen1234 # share link keys, 12+ characters like the web UI's
 k_pw=checklocked12
 pw_share=check-pw-share
+pw_chpw=check-pw-chpw # the account whose password rule 6 changes
 
 die() {
     echo "fork-https-check: $*" >&2
@@ -103,6 +104,9 @@ cat >"$tmp/copyparty.conf" <<EOF
   # as on the Pi (login-outside): the admin account logs in only from Inside (the home IP) or
   # from 127.0.0.1 (an SSH tunnel to the Pi); rule 6b
   ipr: $inside/32,127.0.0.1/32=check-admin
+  # and: the browser keeps a login a week of inactivity; new passwords 12 characters or more
+  logout: 168
+  chpw-len: 12
   # log the headers nginx passes on (rule 8b); the marker first, to find a request's lines
   ihead: x-fork-marker
   ihead: authorization
@@ -114,11 +118,13 @@ cat >"$tmp/copyparty.conf" <<EOF
 [accounts]
   check-admin: $pw_admin
   check-user: $pw
+  check-chpw: $pw_chpw
 
 [/vol]
   $tmp/srv/vol
   accs:
     rwmd: check-user
+    r: check-chpw
     A: check-admin
 
 [/home/check-user]
@@ -486,6 +492,31 @@ if [ "$got" = ok ] && [ "$back" = "$want_o" ]; then
     pass "Outside: with the login cookie, a 3 MiB up2k upload (4 chunks) into the home folder arrives"
 else
     fail "Outside: with the login cookie, a 3 MiB up2k upload (4 chunks) into the home folder arrives" "${got:0:200}"
+fi
+# the browser keeps the login a week (logout: 168): the cookie expires 7 days from now
+exp=$(awk '$6 == "cppws" { print $5 }' "$tmp/ojar")
+left=$((${exp:-0} - $(date +%s)))
+if [ "$left" -gt $((7 * 86400 - 300)) ] && [ "$left" -le $((7 * 86400)) ]; then
+    pass "Outside: the login cookie lasts a week"
+else
+    fail "Outside: the login cookie lasts a week" "expires in ${left}s"
+fi
+# a password change Outside, with the login cookie, of an account of its own (the others'
+# passwords stay): 11 characters are refused, 12 accepted (chpw-len: 12), and the new one works
+rm -f "$tmp/cjar"
+req $outside -o /dev/null -c "$tmp/cjar" "$https/" --form-string act=login --form-string "cppwd=$pw_chpw" --form-string uhash=x
+chpw() { # NEW-PASSWORD: change check-chpw's password at the control panel; prints copyparty's answer
+    req $outside -b "$tmp/cjar" -c "$tmp/cjar" "$https/?h" --form-string act=chpw --form-string "pw=$1" |
+        grep -oE 'new password OK|minimum password length: [0-9]+|naw dude|not logged in' | head -1
+}
+short=$(chpw check-pw-11) # 11 characters
+long=$(chpw check-pw-12c) # 12
+works=$(req $inside -o /dev/null -w '%{http_code}' -u "check-chpw:check-pw-12c" "$https/vol/hello.txt")
+if [ "$short" = "minimum password length: 12" ] && [ "$long" = "new password OK" ] && [ "$works" = 200 ]; then
+    pass "Outside: a new password of 11 characters is refused, of 12 accepted"
+else
+    fail "Outside: a new password of 11 characters is refused, of 12 accepted" \
+        "11: ${short:-no answer}; 12: ${long:-no answer}; logging in with it: $works"
 fi
 # and writes: PUT, then DELETE, on a volume
 echo "a small upload" >"$tmp/small.txt"
