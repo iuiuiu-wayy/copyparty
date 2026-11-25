@@ -95,10 +95,25 @@ do **not** enable mimalloc (`LD_PRELOAD`) in the arm64 docker image; it crashes 
 * default password storage is **plain text** in the config (`ah-alg: none`). Turn on hashing
   (`ah-alg`, generate with `--ah-cli` / `--ah-gen`). Check argon2's memory cost on the Pi before
   choosing it over scrypt -- not measured yet.
-* HTTPS from the internet: nginx in front, where Outside (anything but the home's static IP)
-  opens only share links: the site file `contrib/nginx/fork-https-outside.conf`, checked locally
-  by `scripts/fork-https-check.sh`; putting it on the Pi and checking it by hand:
-  [docs/fork-https-outside-pi.md](docs/fork-https-outside-pi.md)
+* HTTPS from the internet: nginx in front, the site file `contrib/nginx/fork-https-outside.conf`,
+  checked locally by `scripts/fork-https-check.sh`; putting it on the Pi and checking it by hand:
+  [docs/fork-https-outside-pi.md](docs/fork-https-outside-pi.md). Inside is the home's static IP
+  only; Outside is everything else.
+  * 2026-11-21 (https-outside): Outside opened only share links.
+  * 2026-11-23 (login-outside) reverses part of that: Outside also gets copyparty's login page at
+    `/`, so account holders reach their own files away from home. Guests still reach only share
+    links, where account passwords and cookies count for nothing. Without a login cookie, nginx
+    answers everything but `/`, share links and static files itself (302 to `/`, or 404), so the
+    scanners that found the domain within a minute of its certificate mostly never reach
+    copyparty. HSTS tells browsers to use only HTTPS.
+  * the admin account logs in only Inside or through an SSH tunnel to the Pi (`ipr`); from
+    Outside its login is refused like a wrong password and counts toward the ban (`ban-pw`).
+    Logins end after a week unused in the browser (`logout: 168`; a copied session stays valid
+    until that account's password changes), new passwords need 12 characters (`chpw-len: 12`;
+    passwords set in the config are not checked, so keep them long and random by hand).
+  * accepted risks: the whole copyparty app, the fork's code included, is reachable by anyone
+    with a login, so the weakest everyday password is the way in; and there is no deadline yet
+    for getting copyparty's security releases onto the Pi.
 * get copyparty only from official sources (github releases, PyPI, `copyparty/*` on docker hub,
   copyparty.eu). A "maintained fork… security patches… pip install" repo showed up in the fork
   list in Nov 2026 and was deleted soon after.
