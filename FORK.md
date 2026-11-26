@@ -116,7 +116,24 @@ do **not** enable mimalloc (`LD_PRELOAD`) in the arm64 docker image; it crashes 
     Logins end after a week unused in the browser (`logout: 168`; a copied session stays valid
     until that account's password changes), new passwords need 12 characters (`chpw-len: 12`;
     passwords set in the config are not checked, so keep them long and random by hand).
+  * 2026-11-26: the login cookie is `SameSite=Lax` (`cookie-lax`), not copyparty's default
+    `Strict`. A `Strict` cookie stays behind when a visit starts on another site or app (a link
+    tapped in WhatsApp or an email), so nginx's gate answered an account holder who was logged
+    in with the 302 to `/` and the login page. `cookie-lax` changes only the SameSite of the
+    login cookies (`gencookie` in `util.py`); they stay `Secure; HttpOnly`.
   * accepted risks:
+    * `cookie-lax` gives up some CSRF protection. The cookie still stays off cross-site POSTs,
+      iframes and subresources (images, scripts, fetch), but a top-level GET from another site
+      carries it, so a link can make copyparty run its GET actions as whoever is logged in.
+      Those that change something: `/?reload=cfg` (re-reads the config and re-indexes every
+      volume) and `?scan` (re-indexes that volume), for an account with `a` on some volume (on
+      that volume, for `?scan`); in the tested config every account has `A` on her home folder,
+      so that is every account holder, not just the admin. And `/?reset` clears copyparty's
+      cookies, the login among them: a link logs you out (`?setck` sets a UI cookie only). None
+      of them touches a file; on the Pi the cost is a re-index's disk and CPU. The worse ones
+      are off by default and must stay off: `getmod` (`?delete`, `?move`, `?copy` as GET) and
+      `smsg: GET` (runs `xm` hooks); `/?idp&rm=` (forgets an IdP user) works only for accounts
+      in `idp-adm`.
     * the whole copyparty app, the fork's code included, is reachable by anyone: nginx can't
       check the `cppws` cookie, so any made-up value passes the gate and copyparty answers it as
       a guest. So nothing outside share links may be open to guests: no volume may give `*` any

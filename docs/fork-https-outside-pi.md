@@ -48,13 +48,15 @@ Each line: the command, then what it must show. Stop at the first one that doesn
 4. copyparty's config has the four lines the site file relies on:
    `sudo grep -nE '^\s*(i|rproxy|shr):|^\s*http-only' /etc/copyparty.conf` shows
    `i: 127.0.0.1`, `rproxy: -1`, `http-only` and `shr: /share/`.
-5. copyparty's config has the three lines for logins from Outside:
-   `sudo grep -nE '^\s*(ipr|logout|chpw-len):' /etc/copyparty.conf` shows these, in `[global]`:
+5. copyparty's config has the four lines for logins from Outside:
+   `sudo grep -nE '^\s*(ipr|logout|chpw-len):|^\s*cookie-lax' /etc/copyparty.conf` shows these, in
+   `[global]`:
 
    ```
      ipr: 203.0.113.7/32,127.0.0.1/32=admin
      logout: 168
      chpw-len: 12
+     cookie-lax
    ```
 
    - `ipr`: the admin account logs in only from home (`203.0.113.7`) or from the Pi itself (the
@@ -62,6 +64,11 @@ Each line: the command, then what it must show. Stop at the first one that doesn
    - `logout: 168`: a login lasts a week unused, then the browser asks again. To end a login on a
      lost phone at once, change that account's password.
    - `chpw-len: 12`: a new password set at the control panel needs at least 12 characters.
+   - `cookie-lax`: the login cookie is `SameSite=Lax` instead of `Strict`, so a link to the site
+     tapped in WhatsApp or an email opens logged in. With `Strict` the browser leaves the cookie
+     behind on such a visit, and nginx sends you to the login page though you are logged in. The
+     cost, a link on another site can make copyparty do a few things as you: FORK.md's
+     "security notes".
 
    If they are missing, add them under `[global]` (`sudoedit /etc/copyparty.conf`), with your home
    IP and your admin account's name, then `sudo systemctl restart copyparty` (a restart: a
@@ -183,6 +190,7 @@ Open each in the phone's browser; the right column is what you must see.
 | `https://files.example.org/` | copyparty's login page, padlock |
 | a bookmark of a folder, not logged in: `https://files.example.org/home/<name>/`, a volume such as `/family/` | sent to `https://files.example.org/`, the login page |
 | log in there as `<name>` | logged in; `/home/<name>/` opens, so do her volumes and the control panel (`/?h`) |
+| still logged in: send yourself `https://files.example.org/home/<name>/` in a chat app such as WhatsApp (or by email), then tap the link there | it opens logged in, on that folder, not the login page (`cookie-lax`). If the app opens links in a browser of its own, that one may not have your login: choose "open in browser" from its menu and tap again |
 | upload into `/home/<name>/`: a photo, then a file over 1 MB | both arrive |
 | log out, then log in as `admin` with its right password, **once only** | refused, like a wrong password |
 | `https://203.0.113.7/` (the bare IP) | a certificate warning (the certificate is for the name); past it, the same login page |
@@ -303,5 +311,5 @@ sudo nginx -t && sudo systemctl reload nginx
 ```
 
 If that file is the earlier version of this one, Outside opens only share links again (no
-login); the three copyparty lines of step 0 can stay. Either way, `sudo certbot renew --dry-run`
-afterwards confirms renewal still works.
+login); the four copyparty lines of step 0 (item 5) can stay. Either way,
+`sudo certbot renew --dry-run` afterwards confirms renewal still works.
