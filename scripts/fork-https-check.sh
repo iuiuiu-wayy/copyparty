@@ -107,6 +107,8 @@ cat >"$tmp/copyparty.conf" <<EOF
   # and: the browser keeps a login a week of inactivity; new passwords 12 characters or more
   logout: 168
   chpw-len: 12
+  # and the login cookie is SameSite=Lax, so links from other apps arrive logged in
+  cookie-lax
   # log the headers nginx passes on (rule 8b); the marker first, to find a request's lines
   ihead: x-fork-marker
   ihead: authorization
@@ -479,7 +481,8 @@ for how in GET HEAD; do
 done
 # an everyday account logs in at / (the login page's form) and gets the HTTPS login cookie
 rm -f "$tmp/ojar"
-req $outside -o /dev/null -c "$tmp/ojar" "$https/" --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
+req $outside -o /dev/null -c "$tmp/ojar" -D "$tmp/ohdrs" "$https/" --form-string act=login --form-string "cppwd=$pw" \
+    --form-string uhash=x
 if grep -qP '\tcppws\t(?!x$)' "$tmp/ojar" 2>/dev/null; then
     pass "Outside: an everyday account logs in at / and gets the HTTPS login cookie"
 else
@@ -517,6 +520,20 @@ if [ "$left" -gt $((7 * 86400 - 300)) ] && [ "$left" -le $((7 * 86400)) ]; then
     pass "Outside: the login cookie lasts a week"
 else
     fail "Outside: the login cookie lasts a week" "expires in ${left}s"
+fi
+# the login cookie is SameSite=Lax (cookie-lax), so a link to the site tapped in a chat app or an
+# email arrives logged in (a Strict cookie stays behind on such a visit, and nginx's gate sends
+# the account holder to the login page); and it is still Secure and HttpOnly
+set_ck=$(tr -d '\r' <"$tmp/ohdrs" | grep -i '^set-cookie: cppws=')
+bad=
+for a in SameSite=Lax Secure HttpOnly; do
+    grep -qiE "; *$a *(;|\$)" <<<"$set_ck" || bad="$bad no-$a"
+done
+if [ -n "$set_ck" ] && [ -z "$bad" ]; then
+    pass "Outside: the login cookie is SameSite=Lax (links from other apps arrive logged in), Secure, HttpOnly"
+else
+    fail "Outside: the login cookie is SameSite=Lax (links from other apps arrive logged in), Secure, HttpOnly" \
+        "${set_ck:-no Set-Cookie: cppws}"
 fi
 # a password change Outside, with the login cookie, of an account of its own (the others'
 # passwords stay): 11 characters are refused, 12 accepted (chpw-len: 12), and the new one works
