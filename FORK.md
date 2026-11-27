@@ -95,10 +95,55 @@ do **not** enable mimalloc (`LD_PRELOAD`) in the arm64 docker image; it crashes 
 * default password storage is **plain text** in the config (`ah-alg: none`). Turn on hashing
   (`ah-alg`, generate with `--ah-cli` / `--ah-gen`). Check argon2's memory cost on the Pi before
   choosing it over scrypt -- not measured yet.
-* HTTPS from the internet: nginx in front, where Outside (anything but the home's static IP)
-  opens only share links: the site file `contrib/nginx/fork-https-outside.conf`, checked locally
-  by `scripts/fork-https-check.sh`; putting it on the Pi and checking it by hand:
-  [docs/fork-https-outside-pi.md](docs/fork-https-outside-pi.md)
+* HTTPS from the internet: nginx in front, the site file `contrib/nginx/fork-https-outside.conf`,
+  checked locally by `scripts/fork-https-check.sh`; putting it on the Pi and checking it by hand:
+  [docs/fork-https-outside-pi.md](docs/fork-https-outside-pi.md). Inside is the home's static IP
+  only; Outside is everything else.
+  * 2026-11-21 (https-outside): Outside opened only share links.
+  * 2026-11-23 (login-outside) reverses part of that: Outside also gets copyparty's login page at
+    `/`, so account holders reach their own files away from home. Guests still reach only share
+    links, where account passwords and cookies count for nothing. Without a login cookie, what
+    reaches copyparty from Outside is: GET, HEAD and POST of `/` (with any query: the login page
+    and its form), the share area, and GET/HEAD of the static files (`/.cpr/`); nginx answers
+    everything else itself (GET/HEAD elsewhere: 302 to `/`; any other method, PROPFIND, PUT or
+    OPTIONS of `/` included: a bare 404, after the rate limits). HSTS tells browsers to use only
+    HTTPS.
+  * only browser logins work Outside: the gate passes a request on the `cppws` cookie only, so a
+    client that logs in with basic auth or a `PW` header (WebDAV, rclone, u2c, phone apps) gets
+    the 302 or the 404 beyond `/` and share links, whatever its password. Those work Inside only.
+  * the admin account logs in only Inside or through an SSH tunnel to the Pi (`ipr`); from
+    Outside its login is refused like a wrong password and counts toward the ban (`ban-pw`).
+    Logins end after a week unused in the browser (`logout: 168`; a copied session stays valid
+    until that account's password changes), new passwords need 12 characters (`chpw-len: 12`;
+    passwords set in the config are not checked, so keep them long and random by hand).
+  * 2026-11-26: the login cookie is `SameSite=Lax` (`cookie-lax`), not copyparty's default
+    `Strict`. A `Strict` cookie stays behind when a visit starts on another site or app (a link
+    tapped in WhatsApp or an email), so nginx's gate answered an account holder who was logged
+    in with the 302 to `/` and the login page. `cookie-lax` changes only the SameSite of the
+    login cookies (`gencookie` in `util.py`); they stay `Secure; HttpOnly`.
+  * accepted risks:
+    * `cookie-lax` gives up some CSRF protection. The cookie still stays off cross-site POSTs,
+      iframes and subresources (images, scripts, fetch), but a top-level GET from another site
+      carries it, so a link can make copyparty run its GET actions as whoever is logged in.
+      Those that change something: `/?reload=cfg` (re-reads the config and re-indexes every
+      volume) and `?scan` (re-indexes that volume), for an account with `a` on some volume (on
+      that volume, for `?scan`); in the tested config every account has `A` on her home folder,
+      so that is every account holder, not just the admin. And `/?reset` clears copyparty's
+      cookies, the login among them: a link logs you out (`?setck` sets a UI cookie only). None
+      of them touches a file; on the Pi the cost is a re-index's disk and CPU. The worse ones
+      are off by default and must stay off: `getmod` (`?delete`, `?move`, `?copy` as GET) and
+      `smsg: GET` (runs `xm` hooks); `/?idp&rm=` (forgets an IdP user) works only for accounts
+      in `idp-adm`.
+    * the whole copyparty app, the fork's code included, is reachable by anyone: nginx can't
+      check the `cppws` cookie, so any made-up value passes the gate and copyparty answers it as
+      a guest. So nothing outside share links may be open to guests: no volume may give `*` any
+      permission (the Pi checklist's step 0 checks it). With a real login, the weakest everyday
+      password is the way in.
+    * `ipr` allows the admin account's login from the home IP, and everything at home is that IP
+      (guest Wi-Fi, ESP boards; NAT loopback), so anyone at home can try the admin password; and
+      more than 9 wrong tries in an hour (`ban-pw`) ban that one IP, so the whole household, for
+      a day (a copyparty restart lifts it).
+    * there is no deadline yet for getting copyparty's security releases onto the Pi.
 * get copyparty only from official sources (github releases, PyPI, `copyparty/*` on docker hub,
   copyparty.eu). A "maintained fork… security patches… pip install" repo showed up in the fork
   list in Nov 2026 and was deleted soon after.

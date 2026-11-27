@@ -26,6 +26,7 @@ pw_admin=check-pw-admin
 k_open=checkopen1234 # share link keys, 12+ characters like the web UI's
 k_pw=checklocked12
 pw_share=check-pw-share
+pw_chpw=check-pw-chpw # the account whose password rule 6 changes
 
 die() {
     echo "fork-https-check: $*" >&2
@@ -100,6 +101,14 @@ cat >"$tmp/copyparty.conf" <<EOF
   chpw-db: $tmp/db/chpw.json
   # password changes on, as on the Pi, so rule 8 has one to refuse
   chpw
+  # as on the Pi (login-outside): the admin account logs in only from Inside (the home IP) or
+  # from 127.0.0.1 (an SSH tunnel to the Pi); rule 6b
+  ipr: $inside/32,127.0.0.1/32=check-admin
+  # and: the browser keeps a login a week of inactivity; new passwords 12 characters or more
+  logout: 168
+  chpw-len: 12
+  # and the login cookie is SameSite=Lax, so links from other apps arrive logged in
+  cookie-lax
   # log the headers nginx passes on (rule 8b); the marker first, to find a request's lines
   ihead: x-fork-marker
   ihead: authorization
@@ -111,11 +120,13 @@ cat >"$tmp/copyparty.conf" <<EOF
 [accounts]
   check-admin: $pw_admin
   check-user: $pw
+  check-chpw: $pw_chpw
 
 [/vol]
   $tmp/srv/vol
   accs:
     rwmd: check-user
+    r: check-chpw
     A: check-admin
 
 [/home/check-user]
@@ -268,12 +279,12 @@ logged_ip() {
 
 # an up2k upload through nginx from a source address, all chunks stitched into one POST like
 # copyparty's own clients do: up2k SRC DIR-URL FILE NAME [PASSWORD of check-user; none for a
-# guest]; prints "ok" or what went wrong
+# guest] [LOGIN-COOKIE value, sent as cppws]; prints "ok" or what went wrong
 up2k() {
-    "$py" -I - "$1" "$p_https" "$domain" "$2" "$3" "$4" "${5:-}" <<'EOF'
+    "$py" -I - "$1" "$p_https" "$domain" "$2" "$3" "$4" "${5:-}" "${6:-}" <<'EOF'
 import base64, hashlib, http.client, json, os, ssl, sys
 
-src, port, host, url, fn, name, pw = sys.argv[1:]
+src, port, host, url, fn, name, pw, ck = sys.argv[1:]
 size = os.path.getsize(fn)
 csz = 1024 * 1024  # copyparty's up2k_chunksize() for files up to 256 MiB
 with open(fn, "rb") as f:
@@ -290,6 +301,8 @@ def req(method, url, body, hdrs):
     if pw:
         zs = base64.b64encode(("check-user:" + pw).encode("utf-8")).decode("ascii")
         hdrs["Authorization"] = "Basic " + zs
+    if ck:
+        hdrs["Cookie"] = "cppws=" + ck
     c.request(method, url, body, hdrs)
     r = c.getresponse()
     return r.status, r.read().decode("utf-8", "replace")
@@ -411,33 +424,258 @@ bare404() {
     fi
 }
 
-# 6. Outside reaches nothing but share links and static files: a bare 404 from nginx
-bare404 "Outside: / gives a bare 404" $outside "$https/"
-bare404 "Outside: the control panel gives a bare 404" $outside "$https/?h" -u "check-user:$pw"
-bare404 "Outside: a home folder gives a bare 404" $outside "$https/home/check-user/mine.txt" -u "check-user:$pw"
-bare404 "Outside: a volume gives a bare 404" $outside "$https/vol/hello.txt" -u "check-user:$pw"
-bare404 "Outside: the login POST gives a bare 404" $outside "$https/" \
-    --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
-# an account holder's login cookie, made Inside, is no use Outside
-req $inside -o /dev/null -c "$tmp/jar" "$https/" --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
-if grep -q cppws "$tmp/jar" 2>/dev/null; then
-    bare404 "Outside: a login cookie from Inside still gives a bare 404" $outside -b "$tmp/jar" "$https/home/check-user/"
+# 6. Outside, without a login cookie: GET, HEAD and POST of / reach copyparty (its login page; any
+# other method the bare 404); anything else but share links
+# and static files stops at nginx (GET and HEAD: 302 to /; any other method: the bare 404)
+ua='Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0' # copyparty sends HTML to browsers
+# a rule that a request gets copyparty's login form: loginpage NAME SRC [curl args...]
+loginpage() {
+    local name=$1 got
+    shift
+    got=$(answer "$@" -A "$ua")
+    if [ "$got" = "200 copyparty" ] && grep -qF 'name="cppwd"' "$tmp/body"; then
+        pass "$name"
+    else
+        fail "$name" "got: $got, login form: $(grep -c 'name="cppwd"' "$tmp/body")"
+    fi
+}
+loginpage "Outside: / gives copyparty's login page" $outside "$https/"
+loginpage "Outside: the control panel at /?h gives copyparty's login page" $outside "$https/?h"
+# at / without a login cookie only GET, HEAD and POST (the login page and its form) reach
+# copyparty; any other method gets the bare 404, so a cookieless WebDAV client stops at nginx
+code=$(req $outside -I -o /dev/null -w '%{http_code}' "$https/")
+if [ "$code" = 200 ]; then
+    pass "Outside, no login cookie: HEAD of / reaches copyparty"
 else
-    fail "Outside: a login cookie from Inside still gives a bare 404" "no cookie from logging in Inside"
+    fail "Outside, no login cookie: HEAD of / reaches copyparty" "got: $code"
+fi
+bare404 "Outside, no login cookie: PROPFIND of / gives a bare 404" $outside -X PROPFIND -H 'Depth: 1' \
+    -u "check-user:$pw" "$https/"
+bare404 "Outside, no login cookie: PROPFIND of /?ls gives a bare 404" $outside -X PROPFIND -H 'Depth: 1' "$https/?ls"
+bare404 "Outside, no login cookie: PUT of / gives a bare 404" $outside -X PUT --data-binary @"$tmp/srv/vol/hello.txt" \
+    -u "check-user:$pw" "$https/"
+for how in MKCOL DELETE OPTIONS LOCK; do
+    bare404 "Outside, no login cookie: $how of / gives a bare 404" $outside -X $how -u "check-user:$pw" "$https/"
+done
+# a rule that a request stops at nginx with a 302 to / (Location just "/", so the browser stays
+# on the name it used; copyparty never answers so on these paths): tologin NAME SRC [curl args...]
+tologin() {
+    local name=$1 code loc
+    shift
+    code=$(req "$@" -o /dev/null -D "$tmp/hdrs" -w '%{http_code}')
+    loc=$(tr -d '\r' <"$tmp/hdrs" | sed -n 's/^[Ll]ocation: //p')
+    if [ "$code" = 302 ] && [ "$loc" = / ]; then
+        pass "$name"
+    else
+        fail "$name" "got: $code, Location: ${loc:-none}"
+    fi
+}
+for how in GET HEAD; do
+    h=
+    [ $how = HEAD ] && h=-I
+    tologin "Outside, no login cookie: $how of a home folder gives 302 to /" $outside $h \
+        -u "check-user:$pw" "$https/home/check-user/mine.txt"
+    tologin "Outside, no login cookie: $how of a volume gives 302 to /" $outside $h -u "check-user:$pw" "$https/vol/hello.txt"
+    tologin "Outside, no login cookie: $how of a volume's control panel gives 302 to /" $outside $h \
+        -u "check-user:$pw" "$https/vol/?h"
+done
+# an everyday account logs in at / (the login page's form) and gets the HTTPS login cookie
+rm -f "$tmp/ojar"
+req $outside -o /dev/null -c "$tmp/ojar" -D "$tmp/ohdrs" "$https/" --form-string act=login --form-string "cppwd=$pw" \
+    --form-string uhash=x
+if grep -qP '\tcppws\t(?!x$)' "$tmp/ojar" 2>/dev/null; then
+    pass "Outside: an everyday account logs in at / and gets the HTTPS login cookie"
+else
+    fail "Outside: an everyday account logs in at / and gets the HTTPS login cookie" "no cppws cookie"
+fi
+# an account holder's login cookie made Inside, for rule 8
+req $inside -o /dev/null -c "$tmp/jar" "$https/" --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
+# with the cookie from Outside: the home folder, a volume and the control panel open
+bad=
+for u in /home/check-user/mine.txt /vol/hello.txt /vol/?h; do
+    got=$(answer $outside -A "$ua" -b "$tmp/ojar" "$https$u")
+    [ "$got" = "200 copyparty" ] || bad="$bad $u:$got"
+done
+grep -qF 'home of check-user' <<<"$(req $outside -b "$tmp/ojar" "$https/home/check-user/mine.txt")" || bad="$bad home:content"
+if [ -z "$bad" ]; then
+    pass "Outside: with the login cookie, a home folder, a volume and a control panel open"
+else
+    fail "Outside: with the login cookie, a home folder, a volume and a control panel open" "got:$bad"
+fi
+# and an up2k upload (larger than one chunk) into the home folder arrives
+head -c $((3 * 1024 * 1024 + 456)) /dev/urandom >"$tmp/out.bin"
+want_o=$(sha256sum <"$tmp/out.bin" | cut -d' ' -f1)
+ck=$(awk '$6 == "cppws" { print $7 }' "$tmp/ojar")
+got=$(up2k $outside /home/check-user/ "$tmp/out.bin" out.bin "" "$ck" 2>&1)
+back=$(req $outside -b "$tmp/ojar" "$https/home/check-user/out.bin" | sha256sum | cut -d' ' -f1)
+if [ "$got" = ok ] && [ "$back" = "$want_o" ]; then
+    pass "Outside: with the login cookie, a 3 MiB up2k upload (4 chunks) into the home folder arrives"
+else
+    fail "Outside: with the login cookie, a 3 MiB up2k upload (4 chunks) into the home folder arrives" "${got:0:200}"
+fi
+# the browser keeps the login a week (logout: 168): the cookie expires 7 days from now
+exp=$(awk '$6 == "cppws" { print $5 }' "$tmp/ojar")
+left=$((${exp:-0} - $(date +%s)))
+if [ "$left" -gt $((7 * 86400 - 300)) ] && [ "$left" -le $((7 * 86400)) ]; then
+    pass "Outside: the login cookie lasts a week"
+else
+    fail "Outside: the login cookie lasts a week" "expires in ${left}s"
+fi
+# the login cookie is SameSite=Lax (cookie-lax), so a link to the site tapped in a chat app or an
+# email arrives logged in (a Strict cookie stays behind on such a visit, and nginx's gate sends
+# the account holder to the login page); and it is still Secure and HttpOnly
+set_ck=$(tr -d '\r' <"$tmp/ohdrs" | grep -i '^set-cookie: cppws=')
+bad=
+for a in SameSite=Lax Secure HttpOnly; do
+    grep -qiE "; *$a *(;|\$)" <<<"$set_ck" || bad="$bad no-$a"
+done
+if [ -n "$set_ck" ] && [ -z "$bad" ]; then
+    pass "Outside: the login cookie is SameSite=Lax (links from other apps arrive logged in), Secure, HttpOnly"
+else
+    fail "Outside: the login cookie is SameSite=Lax (links from other apps arrive logged in), Secure, HttpOnly" \
+        "${set_ck:-no Set-Cookie: cppws}"
+fi
+# a password change Outside, with the login cookie, of an account of its own (the others'
+# passwords stay): 11 characters are refused, 12 accepted (chpw-len: 12), and the new one works
+rm -f "$tmp/cjar"
+req $outside -o /dev/null -c "$tmp/cjar" "$https/" --form-string act=login --form-string "cppwd=$pw_chpw" --form-string uhash=x
+chpw() { # NEW-PASSWORD: change check-chpw's password at the control panel; prints copyparty's answer
+    req $outside -b "$tmp/cjar" -c "$tmp/cjar" "$https/?h" --form-string act=chpw --form-string "pw=$1" |
+        grep -oE 'new password OK|minimum password length: [0-9]+|naw dude|not logged in' | head -1
+}
+short=$(chpw check-pw-11) # 11 characters
+long=$(chpw check-pw-12c) # 12
+works=$(req $inside -o /dev/null -w '%{http_code}' -u "check-chpw:check-pw-12c" "$https/vol/hello.txt")
+if [ "$short" = "minimum password length: 12" ] && [ "$long" = "new password OK" ] && [ "$works" = 200 ]; then
+    pass "Outside: a new password of 11 characters is refused, of 12 accepted"
+else
+    fail "Outside: a new password of 11 characters is refused, of 12 accepted" \
+        "11: ${short:-no answer}; 12: ${long:-no answer}; logging in with it: $works"
+fi
+# and writes: PUT, then DELETE, on a volume
+echo "a small upload" >"$tmp/small.txt"
+put=$(req $outside -o /dev/null -w '%{http_code}' -b "$tmp/ojar" -T "$tmp/small.txt" "$https/vol/out-put.txt")
+del=$(req $outside -o /dev/null -w '%{http_code}' -b "$tmp/ojar" -X DELETE "$https/vol/out-put.txt")
+if [ "$put" = 201 ] && [ "$del" = 200 ]; then
+    pass "Outside: with the login cookie, PUT and DELETE on a volume work"
+else
+    fail "Outside: with the login cookie, PUT and DELETE on a volume work" "PUT $put, DELETE $del"
+fi
+# with the cookie, any method at / reaches copyparty again (PROPFIND lists the root)
+got=$(answer $outside -b "$tmp/ojar" -X PROPFIND -H 'Depth: 1' "$https/")
+if [ "$got" = "207 copyparty" ]; then
+    pass "Outside: with the login cookie, PROPFIND of / reaches copyparty"
+else
+    fail "Outside: with the login cookie, PROPFIND of / reaches copyparty" "got: $got"
+fi
+# a made-up cookie value passes nginx, and copyparty answers it as a guest's: no home folder
+got=$(answer $outside -A "$ua" -b cppws=fork-check-made-up-cookie "$https/home/check-user/mine.txt")
+case $got in
+*" copyparty")
+    if [ "${got%% *}" != 200 ] && ! grep -qF 'home of check-user' "$tmp/body"; then
+        pass "Outside: a made-up login cookie reaches copyparty, which answers as for a guest"
+    else
+        fail "Outside: a made-up login cookie reaches copyparty, which answers as for a guest" "got: $got, with the file"
+    fi
+    ;;
+*) fail "Outside: a made-up login cookie reaches copyparty, which answers as for a guest" "got: $got" ;;
+esac
+
+# 6b. the admin account logs in only Inside, or straight at copyparty from 127.0.0.1 (an SSH
+# tunnel to the Pi; ipr in copyparty's config). Through nginx, Outside, it is refused like a
+# wrong password, whatever the request claims; tested from Outside addresses other than
+# 127.0.0.1, so that the tunnel's exception can't hide a hole
+# login SRC [curl args...]: log in as the admin account at / through nginx; prints the
+# login cookie's value, empty if refused (the jar is left in $tmp/adjar)
+login() {
+    local src=$1
+    shift
+    rm -f "$tmp/adjar"
+    req $src -o /dev/null -c "$tmp/adjar" "$@" "$https/" --form-string act=login \
+        --form-string "cppwd=$pw_admin" --form-string uhash=x
+    awk '$6 == "cppws" && $7 != "x" { print $7 }' "$tmp/adjar"
+}
+n_ipr() { sed 's/\x1b\[[0-9;]*m//g' "$tmp/copyparty.log" | grep -c 'rejected by --ipr'; }
+before=$(n_ipr)
+got=$(login $outside2)
+sleep 0.3 # copyparty logs from a thread
+if [ -z "$got" ] && [ "$(n_ipr)" -gt "$before" ]; then
+    pass "Outside: the admin account's login at / is refused (copyparty logs: rejected by --ipr)"
+else
+    fail "Outside: the admin account's login at / is refused (copyparty logs: rejected by --ipr)" \
+        "cookie: ${got:-none}; ipr rejections logged: $before, then $(n_ipr)"
+fi
+got=$(login 127.0.0.11 -H 'X-Forwarded-For: 127.0.0.1' -H 'X-Real-IP: 127.0.0.1')
+if [ -z "$got" ]; then
+    pass "Outside: a forged X-Forwarded-For: 127.0.0.1 doesn't let the admin account log in"
+else
+    fail "Outside: a forged X-Forwarded-For: 127.0.0.1 doesn't let the admin account log in" "got a login cookie"
+fi
+# each refusal counts as a wrong password: past ban-pw's 9, copyparty bans that address (and
+# only that one). copyparty doesn't count a password sent again straight after itself, so the
+# admin account's 5 logins take turns with 5 different wrong passwords: 10 counted only if the
+# admin ones count too. From an address of its own, used by no other rule
+for i in $(seq 5); do
+    login 127.0.0.21 >/dev/null
+    req 127.0.0.21 -o /dev/null "$https/" --form-string act=login --form-string "cppwd=check-wrong-$i" \
+        --form-string uhash=x
+done
+code=$(req 127.0.0.21 -o "$tmp/body" -w '%{http_code}' "$https/")
+other=$(req 127.0.0.22 -o /dev/null -w '%{http_code}' "$https/")
+if [ "$code" = 403 ] && grep -qF 'thank you for playing' "$tmp/body" && [ "$other" = 200 ]; then
+    pass "Outside: admin-account logins count toward copyparty's ban (ban-pw), for that address only"
+else
+    fail "Outside: admin-account logins count toward copyparty's ban (ban-pw), for that address only" \
+        "after: $code $(head -c 60 "$tmp/body"); another address: $other"
+fi
+got=$(login $inside)
+if [ -n "$got" ]; then
+    pass "Inside: the admin account logs in at /"
+else
+    fail "Inside: the admin account logs in at /" "no login cookie"
+fi
+# and with that cookie opens the control panel as the admin: its admin panel (with "reload
+# cfg"), which a guest's control panel doesn't have
+adm=$(answer $inside -A "$ua" -b "$tmp/adjar" "$https/?h")
+grep -qF 'admin panel:' "$tmp/body" && grep -qF '?reload=cfg' "$tmp/body" && adm="$adm admin-panel"
+gst=$(answer $inside -A "$ua" "$https/?h")
+grep -qF 'admin panel:' "$tmp/body" && gst="$gst admin-panel"
+if [ "$adm" = "200 copyparty admin-panel" ] && [ "$gst" = "200 copyparty" ]; then
+    pass "Inside: with the admin account's login cookie, the control panel shows the admin panel"
+else
+    fail "Inside: with the admin account's login cookie, the control panel shows the admin panel" \
+        "admin: $adm; guest: $gst"
+fi
+# the admin account's cookie, made Inside, is a guest's Outside
+code=$(req $outside2 -o "$tmp/body" -w '%{http_code}' -b "$tmp/adjar" "$https/vol/?ls")
+if [ "$code" != 200 ] && ! grep -qF hello.txt "$tmp/body"; then
+    pass "Outside: the admin account's login cookie from Inside counts for nothing"
+else
+    fail "Outside: the admin account's login cookie from Inside counts for nothing" "got: $code"
+fi
+# straight at copyparty from 127.0.0.1, as through an SSH tunnel to the Pi (no nginx)
+got=$(curl -s --max-time 30 -o /dev/null -D - "http://127.0.0.1:$p_cpp/" --form-string act=login \
+    --form-string "cppwd=$pw_admin" --form-string uhash=x | grep -ciP '^set-cookie: cppwd=(?!x;)')
+if [ "$got" = 1 ]; then
+    pass "copyparty from 127.0.0.1 (an SSH tunnel): the admin account logs in"
+else
+    fail "copyparty from 127.0.0.1 (an SSH tunnel): the admin account logs in" "no login cookie"
 fi
 bare404 "Outside: PUT on a volume gives a bare 404" $outside -T "$tmp/big.bin" -u "check-user:$pw" "$https/vol/out.bin"
 bare404 "Outside: DELETE on a volume gives a bare 404" $outside -X DELETE -u "check-user:$pw" "$https/vol/hello.txt"
 bare404 "Outside: PROPFIND on a volume gives a bare 404" $outside -X PROPFIND -H 'Depth: 1' -u "check-user:$pw" "$https/vol/"
 bare404 "Outside: MKCOL on a volume gives a bare 404" $outside -X MKCOL -u "check-user:$pw" "$https/vol/newdir/"
+bare404 "Outside: POST on a volume gives a bare 404" $outside -u "check-user:$pw" "$https/vol/" \
+    --form-string act=mkdir --form-string name=newdir
 # paths that only look like the share-link or static area
 for p in /share /.cpr /sharex//share/../vol/hello.txt /share/%2e%2e/vol/hello.txt /share/..%2fvol/hello.txt \
     /.cpr/../vol/hello.txt /.cpr/%2e%2e/vol/hello.txt /.cpr/..%2fvol/hello.txt /share%2f../vol/hello.txt; do
-    bare404 "Outside: $p gives a bare 404" $outside --path-as-is -u "check-user:$pw" "$https$p"
+    tologin "Outside, no login cookie: $p gives 302 to /" $outside --path-as-is -u "check-user:$pw" "$https$p"
 done
 # posing as Inside with a header changes nothing
-bare404 "Outside: a forged X-Forwarded-For with the home IP stays Outside" $outside \
+tologin "Outside: a forged X-Forwarded-For with the home IP stays Outside" $outside \
     -H "X-Forwarded-For: $inside" -u "check-user:$pw" "$https/vol/hello.txt"
-bare404 "Outside: a forged X-Real-IP with the home IP stays Outside" $outside \
+tologin "Outside: a forged X-Real-IP with the home IP stays Outside" $outside \
     -H "X-Real-IP: $inside" -u "check-user:$pw" "$https/vol/hello.txt"
 # the 443 server answers any Host and SNI (a scanner sends the bare IP): the same rules hold
 noname() { # SRC HOST [curl args...]: a request on 443 with HOST as both Host and SNI
@@ -446,17 +684,19 @@ noname() { # SRC HOST [curl args...]: a request on 443 with HOST as both Host an
     curl -sk --max-time 30 --interface "$src" --resolve "$h:$p_https:127.0.0.1" "$@"
 }
 for h in 127.0.0.1 unknown.example; do
-    got=$(noname $outside $h -o "$tmp/body" -w '%{http_code}' "https://$h:$p_https/")
+    got=$(noname $outside $h -o /dev/null -D "$tmp/hdrs" -w '%{http_code}' "https://$h:$p_https/vol/hello.txt")
+    got="$got $(tr -d '\r' <"$tmp/hdrs" | sed -n 's/^[Ll]ocation: //p')"
+    lp=$(noname $outside $h -A "$ua" "https://$h:$p_https/" | grep -c 'name="cppwd"')
     body=$(noname $outside $h "https://$h:$p_https/share/$k_open/hello.txt")
-    if [ "$got" = 404 ] && grep -qF '<center>nginx</center>' "$tmp/body" && [ "$body" = "hello from copyparty" ]; then
-        pass "Outside: with $h as Host and SNI, / gives a bare 404 and a share link opens"
+    if [ "$got" = "302 /" ] && [ "$lp" -ge 1 ] && [ "$body" = "hello from copyparty" ]; then
+        pass "Outside: with $h as Host and SNI, / is the login page, a volume 302s and a share link opens"
     else
-        fail "Outside: with $h as Host and SNI, / gives a bare 404 and a share link opens" "/ gave $got; share: ${body:0:60}"
+        fail "Outside: with $h as Host and SNI, / is the login page, a volume 302s and a share link opens" \
+            "volume: $got; login forms on /: $lp; share: ${body:0:60}"
     fi
 done
 
 # 7. Outside, a guest gets everything a share link gives
-ua='Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0' # copyparty sends HTML to browsers
 # every static file and share-link URL the page in $tmp/body refers to loads: assets_load SRC
 # (not "/share/" itself, the breadcrumb's root, which copyparty refuses to everyone)
 assets_load() {
@@ -731,8 +971,9 @@ inside_as_direct "/ opens" 200 /
 inside_as_direct "the control panel opens" 200 "/?h" -u "check-user:$pw"
 inside_as_direct "a home folder opens" 200 /home/check-user/mine.txt -u "check-user:$pw"
 inside_as_direct "a volume opens" 200 /vol/hello.txt -u "check-user:$pw"
+inside_as_direct "PROPFIND on / works" 207 / -X PROPFIND -H 'Depth: 1' -u "check-user:$pw"
+inside_as_direct "OPTIONS on / works" 200 / -X OPTIONS
 inside_as_direct "the login POST logs in" 200 / --form-string act=login --form-string "cppwd=$pw" --form-string uhash=x
-echo "a small upload" >"$tmp/small.txt"
 inside_as_direct "PUT on a volume works" 201 /vol/in-@.txt -T "$tmp/small.txt" -u "check-user:$pw"
 inside_as_direct "DELETE on a volume works" 200 /vol/in-@.txt -X DELETE -u "check-user:$pw"
 inside_as_direct "PROPFIND on a volume works" 207 /vol/ -X PROPFIND -H 'Depth: 1' -u "check-user:$pw"
@@ -759,6 +1000,26 @@ if [ -n "$ver" ] && [ -z "$leak" ]; then
     pass "responses carry no nginx version"
 else
     fail "responses carry no nginx version" "version ${ver:-unknown} in:$leak"
+fi
+
+# 10b. HSTS: every HTTPS answer, copyparty's and nginx's own, tells browsers to use HTTPS only
+# for a year, for this name only (no includeSubDomains); port 80 sends no such header
+hsts() { # SRC [curl args...]: the Strict-Transport-Security headers of the answer, one per line
+    req "$@" -o /dev/null -D - | tr -d '\r' | grep -i '^strict-transport-security:'
+}
+bad=
+for c in "$outside $https/" "$outside $https/share/$k_open/hello.txt" "$outside $https/.cpr/ui.css" \
+    "$outside $https/vol/hello.txt" "$outside -X DELETE $https/vol/hello.txt" "$inside -u check-user:$pw $https/vol/hello.txt"; do
+    # shellcheck disable=SC2086 # on purpose: each case is words
+    got=$(hsts $c)
+    [ "$got" = "Strict-Transport-Security: max-age=31536000" ] || bad="$bad [${c#* }: ${got:-none}]"
+done
+got=$(hsts $outside "$http/")
+[ -z "$got" ] || bad="$bad [port 80: $got]"
+if [ -z "$bad" ]; then
+    pass "HTTPS answers carry Strict-Transport-Security: max-age=31536000 (port 80 none)"
+else
+    fail "HTTPS answers carry Strict-Transport-Security: max-age=31536000 (port 80 none)" "${bad:0:300}"
 fi
 
 # 11. certbot's renewal (--nginx) still passes Let's Encrypt's HTTP-01 challenge on port 80.
@@ -903,20 +1164,51 @@ else
     fail "Outside: while one address is limited, another still gets through" \
         "flooded address: $still of 5 got 429; other address: $other of 10 got 200"
 fi
+# the same limit on what Outside reaches since login-outside: the login page, and an account
+# holder with the login cookie
+limited() { # NAME SRC URL [curl args...]: the burst of 200 gets 200, then 429
+    local name=$1 src=$2 url=$3 codes
+    shift 3
+    codes=$(flood $src 300 "$url" "$@")
+    if [ "$(sed -n 1,200p <<<"$codes" | count 200)" = 200 ] && [ "$(count 429 <<<"$codes")" -ge 1 ]; then
+        pass "$name"
+    else
+        fail "$name" "$(sort <<<"$codes" | uniq -c | tr -s ' ')"
+    fi
+}
+limited "Outside: a flood of login-page requests from one address gets 429 after its burst" \
+    127.0.0.16 "$https/?n=@"
+limited "Outside: a flood with the login cookie from one address gets 429 after its burst" \
+    127.0.0.17 "$https/vol/hello.txt?n=@" -b "$tmp/ojar"
 
 # a scanner (the Pi saw ~300 paths in 6 s from one address; sent faster here, so that the
-# refill of 20/s can't cover it): nginx's 404 for its burst, then 429, and none of it reaches
-# copyparty
-codes=$(flood 127.0.0.12 300 "$https/fork-scan-@/.env")
-n404=$(count 404 <<<"$codes")
-n429=$(count 429 <<<"$codes")
-logged=$(grep -c fork-scan- "$tmp/copyparty.log")
-if [ "$(sed -n 1,200p <<<"$codes" | count 404)" = 200 ] && [ "$n429" -ge 1 ] &&
-    [ $((n404 + n429)) = 300 ] && [ "$logged" = 0 ]; then
-    pass "Outside: a scanner's burst of non-share paths gets 404, then 429, and never reaches copyparty"
+# refill of 20/s can't cover it), with no login cookie: nginx's answer for its burst (GET: the
+# 302 to /; POST: the bare 404), then 429, and none of it reaches copyparty
+scan() { # NAME SRC WANT [curl args...]
+    local name=$1 src=$2 want=$3 codes nwant n429 logged
+    shift 3
+    codes=$(flood $src 300 "$https/fork-scan-$src-@/.env" "$@")
+    nwant=$(count $want <<<"$codes")
+    n429=$(count 429 <<<"$codes")
+    logged=$(grep -c "fork-scan-$src-" "$tmp/copyparty.log")
+    if [ "$(sed -n 1,200p <<<"$codes" | count $want)" = 200 ] && [ "$n429" -ge 1 ] &&
+        [ $((nwant + n429)) = 300 ] && [ "$logged" = 0 ]; then
+        pass "$name"
+    else
+        fail "$name" "$(sort <<<"$codes" | uniq -c | tr -s ' '); copyparty logged $logged"
+    fi
+}
+scan "Outside: a scanner's GET burst of non-share paths gets 302, then 429, and never reaches copyparty" \
+    127.0.0.12 302
+scan "Outside: a scanner's POST burst of non-share paths gets 404, then 429, and never reaches copyparty" \
+    127.0.0.15 404 -d x=1
+# and the bare 404 of a cookieless PROPFIND of / comes after the rate limits too
+codes=$(flood 127.0.0.18 300 "$https/?n=@" -X PROPFIND -H 'Depth: 1')
+if [ "$(sed -n 1,200p <<<"$codes" | count 404)" = 200 ] && [ "$(count 429 <<<"$codes")" -ge 1 ] &&
+    [ $(($(count 404 <<<"$codes") + $(count 429 <<<"$codes"))) = 300 ]; then
+    pass "Outside: a burst of cookieless PROPFINDs of / gets 404, then 429"
 else
-    fail "Outside: a scanner's burst of non-share paths gets 404, then 429, and never reaches copyparty" \
-        "$(sort <<<"$codes" | uniq -c | tr -s ' '); copyparty logged $logged"
+    fail "Outside: a burst of cookieless PROPFINDs of / gets 404, then 429" "$(sort <<<"$codes" | uniq -c | tr -s ' ')"
 fi
 
 # Inside, the same flood is never limited (the whole household is that one address)
