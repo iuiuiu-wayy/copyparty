@@ -6,6 +6,10 @@
 //   dialog, forkshare.js) and More options with the rest of upstream's lightbox buttons
 //   (rotate, zoom, full screen, select, video mode, page, animation, reading direction,
 //   keyboard shortcuts). Arrows, Esc, swipe and every other key stay upstream's.
+// - HEIC / HEIF pictures open in the lightbox in every browser (upstream: only on Apple, as the
+//   file itself). A browser that can decode HEIC (checked with a tiny one) gets the file; any
+//   other gets the server's preview (?th=wf3: webp, up to 960x768, made with pillow-heif and
+//   cached). Download and the caption still give the original. (deploy-pi ticket 06)
 // - The text viewer (showfile: text, code and markdown) gets the same bar over upstream's;
 //   its More options holds Edit, Select, Beautify JSON, Follow changes and Word wrap.
 // - The audio player (mpl, widget) is a light bottom bar over the whole width: previous,
@@ -178,7 +182,7 @@
         if (!bb.bar || !ov)
             return;
         var a = bb.cur && bb.cur.imageElement,
-            href = a ? (bb.cur.href || a.href || '') : '';
+            href = a ? (bb.cur.fkorig || bb.cur.href || a.href || '') : '';
         bb.name.textContent = basename(href);
         bb.dl.setAttribute('href', href || '#');
         bb.shr.hidden = !canshare() || !bbrow();
@@ -188,6 +192,66 @@
         // the lightbox is named by the file shown
         ov.setAttribute('aria-labelledby', 'fk-bbname');
         ov.setAttribute('aria-modal', 'true');
+    }
+
+    // ---- HEIC in the lightbox. Upstream lists .heic/.heif as pictures only on Apple: in
+    // browser.js's img_re (which opens a file in the lightbox) and in baguetteBox's own list
+    // (which builds the gallery from the links' addresses). img_re gets them here for every
+    // browser; for the gallery, run() below gives each HEIC link an address that passes
+    // baguetteBox's list for the length of upstream's run, so upstream builds every item
+    // itself (order, click handler, options), then puts the address back and points the item
+    // at the preview where the browser can't show HEIC (item.href, which baguetteBox loads
+    // instead of the link; fkorig keeps the original for Download)
+    var RE_HEIC = /^([^?#]+\.hei[cf]s?)([?#].*)?$/i,
+        heic_native = false;    // until the check below says so: the server's preview
+
+    (function () {
+        var im = new Image();
+        im.onload = function () {
+            heic_native = im.naturalWidth > 0;
+        };
+        // an 8x8 HEIC (pillow-heif), as upstream checks webp and jxl support
+        im.src = 'data:image/heic;base64,AAAAHGZ0eXBoZWljAAAAAG1pZjFoZWljbWlhZgAAAXxtZXRhAAAAAAAAACFoZGxyAAAAAAAAAABwaWN0AAAAAAAAAAAAAAAAAAAAACJpbG9jAAAAAERAAAEAAQAAAAABoAABAAAAAAAAACYAAAAjaWluZgAAAAAAAQAAABVpbmZlAgAAAAABAABodmMxAAAAAA5waXRtAAAAAAABAAAA/GlwcnAAAADcaXBjbwAAAHVodmNDAQNwAAAAkAAAAAAAHvAA/P34+AAADwNgAAEAGEABDAH//wNwAAADAJAAAAMAAAMAHroCQGEAAQApQgEBA3AAAAMAkAAAAwAAAwAeoCCBBZbqrprm4CGgwIAAAAyAAAADAIRiAAEABkQBwXPBiQAAABNjb2xybmNseAABAA0ABoAAAAAUaXNwZQAAAAAAAABAAAAAQAAAAChjbGFwAAAACAAAAAEAAAAIAAAAAf///8gAAAAC////yAAAAAIAAAAQcGl4aQAAAAADCAgIAAAAGGlwbWEAAAAAAAAAAQABBYECAwWEAAAALm1kYXQAAAAiKAGvBBITTOD46cJoP9Kn+SZV668n7asr40mfd7EYkqn/oA==';
+    })();
+
+    if (window.img_re && !img_re.test('a.heic'))
+        img_re = new RegExp('\\.hei[cf]s?(\\?|$)|' + img_re.source, img_re.flags);
+
+    // the HEIC links baguetteBox.run(sel) will look at, each given a passing address;
+    // returns what to put back
+    function heic_mask(sel) {
+        var ret = [];
+        QSA(sel).forEach(function (g) {
+            var links = g.tagName == 'A' ? [g] : g.getElementsByTagName('a');
+            for (var a = 0; a < links.length; a++) {
+                var l = links[a],
+                    h = l.getAttribute('href'),
+                    m = h && RE_HEIC.exec(h);
+                if (!m)
+                    continue;
+                ret.push([l, h]);
+                l.setAttribute('href', m[1] + '.webp' + (m[2] || ''));
+            }
+        });
+        return ret;
+    }
+
+    function heic_unmask(masked, ret) {
+        var items = new Map();
+        masked.forEach(function (x) {
+            x[0].setAttribute('href', x[1]);
+            items.set(x[0], true);
+        });
+        if (heic_native || !ret || !ret[0])
+            return;
+        ret[0].forEach(function (gallery) {
+            gallery.forEach(function (it) {
+                if (!items.has(it.imageElement))
+                    return;
+                it.fkorig = it.imageElement.href;
+                it.href = addq(it.fkorig, 'th=wf3');
+            });
+        });
     }
 
     // thegrid.bagit runs baguetteBox.run for every opening; follow its onChange for the item
@@ -215,7 +279,17 @@
             }, 0);
             return ret;
         };
-        var ret = run0.apply(this, arguments);
+        var masked = [], ret;
+        try {
+            masked = heic_mask(sel);
+        }
+        catch (ex) { }
+        try {
+            ret = run0.apply(this, arguments);
+        }
+        finally {
+            heic_unmask(masked, ret);
+        }
         bbdecorate();
         return ret;
     };

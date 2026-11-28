@@ -1155,11 +1155,24 @@ every place this fork changes an upstream file, one section each below. On a mer
   Upstream's `#wtoggle` tab is hidden (its file buttons were hidden already by forklist.js; its
   grid toggle `#wtgrid` goes with it: forkgrid.js's Layout buttons and hotkey G stay). Player
   settings stay in More tools
+- **HEIC in the lightbox** (deploy-pi ticket 06): upstream treats `.heic`/`.heif` as pictures
+  only on Apple (`img_re` in `browser.js`, `re_i` in `baguettebox.js`, by user agent, so Chrome
+  on a Mac gets the raw file it can't show), and elsewhere tapping one downloads it. Here every
+  browser opens it in the lightbox: `img_re` gets HEIC (so the list, the grid, `forklist.js` and
+  upstream's autogrid count it as a picture), and the `baguetteBox.run` wrap gives each HEIC
+  link an address ending in `.webp` for the length of upstream's run, so upstream builds the
+  gallery items itself (order, click handlers, options), then puts the address back. Where the
+  browser can't decode HEIC (an 8x8 HEIC in a data URI, checked once at load, as upstream checks
+  webp and jxl), each HEIC item gets `href` = the file + `?th=wf3` (the server's webp preview, up
+  to 960x768, cached in `.hist/th`), which baguetteBox loads instead of the link, and `fkorig` =
+  the file, which the bar's Download uses; the caption's download link is the link, so the file
+  too. Needs pillow-heif (or vips / ffmpeg) on the server, as the thumbnails do
 - **upstream lines touched:** none. `scripts/sfx.ls`: `web/forkview.js`; `fork_grants.py` adds
   it to upstream's `RES`; one line in `fork-browser.js`'s `SCRIPTS` (after `forkrename.js`); six
   icons in `forkui.js`
 - **fork files:** `copyparty/web/forkview.js`, `tests/test_fork_drive_viewers.py`,
-  `tests/e2e/specs/viewers.spec.js`, `tests/e2e/media/` (seeded media for the harness)
+  `tests/e2e/specs/viewers.spec.js`, `tests/e2e/specs/heic.spec.js`, `tests/e2e/media/` (seeded
+  media for the harness; `tiny.heic` is the same 8x8 HEIC as the check)
 - **on conflict:** nothing to merge, but it leans on upstream names, each listed in
   `tests/test_fork_drive_viewers.py`: `baguetteBox.run` (wrapped, for `onChange` /
   `afterHide`), the overlay's button ids and its document-level focus trap and keydown
@@ -1168,8 +1181,12 @@ every place this fork changes an upstream file, one section each below. On a mer
   `widget.open` / `close` / `paused` (wrapped), the global `play` (wrapped: upstream opens the
   bar only for the first track), `playpause`, `dl_song`, `mp.au.osrc`, `#widgeti`, `#pctl`'s
   buttons, the canvases and `pbar` / `vbar.onresize`, `#wtoggle`'s `np` / `m3u` classes,
-  `#fshr`'s `hide` class. After an upstream merge, run
-  `./scripts/fork-e2e.sh specs/viewers.spec.js`
+  `#fshr`'s `hide` class; for HEIC, `img_re`, `re_i` and the filter reading `element.href`
+  only while `run` builds the gallery, `run`'s return value, `galleryItem.href` loaded before
+  the link's, the caption's download link, util.js `addq`, th_cli's `f` / `3` format letters
+  (`test_names_heic_in_the_lightbox_relies_on`). If upstream lists HEIC for every browser
+  itself, drop the `img_re` line (the run wrap still points the items at the preview). After an
+  upstream merge, run `./scripts/fork-e2e.sh specs/viewers.spec.js specs/heic.spec.js`
 
 ### upstream edit: Share dialog: add people (forkpeople.js, ?grants&j)
 

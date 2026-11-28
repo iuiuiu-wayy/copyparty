@@ -266,6 +266,12 @@ building it:
   player with `bottom: -6em`; the new look adds `visibility: hidden` after the slide.
 - **A source checkout has no `deps/`** (`prism.js`, `marked.js`): the harness shows markdown
   unrendered (nothing at all, after a "failed to load" toast) and text without highlighting.
+- **baguetteBox picks a gallery's items by the links' addresses** (`re_i`, private, Apple-only
+  for HEIC) while `run` builds it, and nothing else of upstream's can add one with the right
+  options: `baguetteBox.show(i, gallery)` on a new gallery resets the options to the defaults
+  (no captions, no `onChange`). To get a file type in, give its links a passing address around
+  `run` and put it back after; to show something else than the link, set the returned items'
+  `href` (as forkview.js does for HEIC).
 
 ## Drive-ux scripts: the grid view (forkgrid.js)
 

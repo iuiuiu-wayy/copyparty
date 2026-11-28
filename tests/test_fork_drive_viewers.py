@@ -22,6 +22,68 @@ class TestForkDriveViewers(unittest.TestCase):
         for zb in names:
             self.assertTrue(zb in buf, "%s: %r" % (where, zb))
 
+    def test_names_heic_in_the_lightbox_relies_on(self):
+        # deploy-pi ticket 06: forkview.js adds HEIC to browser.js's img_re (a
+        # global the list, grid and forklist.js read), and around
+        # baguetteBox.run gives HEIC links an address that passes its own
+        # list, which it reads from element.href only while building the
+        # gallery; the items it returns (run's return value) then get an href
+        # (loaded instead of the link's) pointing at the server's preview
+        self.assert_all(
+            rd("copyparty", "web", "baguettebox.js"),
+            [
+                b"re_i = APPLE ?",
+                b"return re_i.test(element.href) || re_v.test(element.href);",
+                b"return [selectorData.galleries, options];",
+                b"imageSrc = galleryItem.href || imageElement.href,",
+                b"var galleryNodeList = QSA(selector);",
+                b"tagsNodeList = galleryElement.getElementsByTagName('a');",
+            ],
+            "baguettebox.js",
+        )
+        self.assert_all(
+            rd("copyparty", "web", "browser.js"),
+            [
+                b"var img_re = APPLE ?",
+                b"is_img = img_re.test(href),",
+                b"thegrid.bagit('#files');",
+                b"'<a download href=\"' + h +",  # the caption's download: the link, so the original
+            ],
+            "browser.js",
+        )
+        self.assert_all(rd("copyparty", "web", "util.js"), [b"function addq(url, q) {"], "util.js")
+        self.assert_all(
+            rd("copyparty", "web", "forklist.js"),
+            [b"window.img_re && img_re.test(href) && window.thegrid && thegrid.imshow"],
+            "forklist.js",
+        )
+        # the preview the server makes: th=w (webp), f (keep the aspect), 3 (3x the thumbnail)
+        self.assert_all(
+            rd("copyparty", "th_cli.py"),
+            [b'sfmt += "f" if "f" in fmt else ""', b'sfmt += "3" if "3" in fmt else ""'],
+            "th_cli.py",
+        )
+
+    def test_the_heic_check_is_a_heic(self):
+        # the tiny picture forkview.js asks the browser to decode
+        import base64
+        import re
+
+        js = rd("copyparty", "web", "forkview.js").decode("utf-8")
+        m = re.search(r"'data:image/heic;base64,([A-Za-z0-9+/=]+)'", js)
+        self.assertTrue(m)
+        buf = base64.b64decode(m.group(1))
+        self.assertEqual(buf[4:12], b"ftypheic")
+        try:
+            import pillow_heif
+            from PIL import Image
+        except ImportError:
+            return
+        pillow_heif.register_heif_opener()
+        import io
+
+        self.assertEqual(Image.open(io.BytesIO(buf)).size, (8, 8))
+
     def test_baguettebox_names_the_lightbox_bar_relies_on(self):
         # baguetteBox.run is wrapped (called through the object by
         # thegrid.bagit) to follow onChange (this = the gallery, items have
