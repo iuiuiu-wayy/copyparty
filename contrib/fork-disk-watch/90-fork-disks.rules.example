@@ -1,0 +1,9 @@
+# fork-only (disk-space ticket 06): mount each of copyparty's extra disks as soon as
+# it is plugged in. systemd mounts /etc/fstab entries at boot; a disk plugged in
+# later is mounted only when something asks for it, and this asks.
+# Copy to /etc/udev/rules.d/90-fork-disks.rules, one line per disk: the file
+# system's UUID (the UUID= of its /etc/fstab line) and its mount unit
+# (systemd-escape -p --suffix=mount /mnt/hdd1 prints it).
+SUBSYSTEM=="block", ACTION!="remove", ENV{ID_FS_UUID}=="<UUID-of-ssd2>", ENV{SYSTEMD_WANTS}+="mnt-ssd2.mount"
+SUBSYSTEM=="block", ACTION!="remove", ENV{ID_FS_UUID}=="<UUID-of-hdd1>", ENV{SYSTEMD_WANTS}+="mnt-hdd1.mount"
+SUBSYSTEM=="block", ACTION!="remove", ENV{ID_FS_UUID}=="<UUID-of-hdd2>", ENV{SYSTEMD_WANTS}+="mnt-hdd2.mount"

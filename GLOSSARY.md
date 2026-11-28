@@ -43,6 +43,14 @@ _Avoid_: mount, share (when meaning a volume)
 An account holder's own volume, created for each account (`/home/<name>`).
 _Avoid_: personal folder, user dir
 
+**Disk**:
+A drive plugged into the server. Each home folder lives on the first disk and holds a folder on each of the others.
+_Avoid_: drive, partition, volume (a volume is a folder the admin mounted)
+
+**Unplugged disk**:
+A disk the server can't reach right now, pulled out or not mounted. Its folders are missing from every home folder until it is back; nothing on it is lost.
+_Avoid_: offline disk, broken disk
+
 **Shared with me**:
 Every space an account holder can open that someone else gave them: grants they are a recipient of, and volumes the admin opened to them or to one of their groups. Their own home folder is not in it, and neither are share links, which are opened by their URL.
 _Avoid_: shared folders, shared drives

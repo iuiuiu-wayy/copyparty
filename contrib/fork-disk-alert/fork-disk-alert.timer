@@ -1,0 +1,11 @@
+# fork-only (disk-space ticket 04): runs fork-disk-alert.service 5 minutes after
+# boot (a disk that didn't mount is reported then) and every 15 minutes after that
+[Unit]
+Description=fork-disk-alert every 15 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+
+[Install]
+WantedBy=timers.target

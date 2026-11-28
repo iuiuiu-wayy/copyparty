@@ -1,0 +1,36 @@
+# fork-only (disk-space ticket 04): emails when a disk is nearly full or missing.
+# Started by fork-disk-alert.timer; install steps in README.md next to this file.
+[Unit]
+Description=fork-disk-alert: email when a disk is nearly full or missing
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /opt/copyparty/contrib/fork-disk-alert/fork-disk-alert.py --config /etc/fork-disk-alert/fork-disk-alert.conf
+# a throwaway user, state.json kept in /var/lib/fork-disk-alert, and the SMTP
+# password handed over from a root-only file (it never sits in the config)
+DynamicUser=yes
+StateDirectory=fork-disk-alert
+LoadCredential=smtp-password:/etc/fork-disk-alert/smtp-password
+# it only reads the mount table, calls statvfs and talks SMTP
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+TimeoutStartSec=2min

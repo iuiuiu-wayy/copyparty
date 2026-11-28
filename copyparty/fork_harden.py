@@ -29,6 +29,14 @@ def _on(args: Any) -> bool:
     return bool(getattr(args, "harden", False))
 
 
+def stats_u_only(args: Any) -> bool:
+    """with --harden, /.cpr/metrics (--stats) answers only accounts in
+    --stats-u: upstream also lets in any account with `a` on some volume,
+    and with per-account home folders (A: ${u}) that is every account, who
+    could then read every volume's name, size and file count (disk-space 05)"""
+    return _on(args)
+
+
 def is_grant(vn: "VFS") -> bool:
     """True for the volume of one grant (/<grants>/<owner>/<name>)"""
     return getattr(vn, "fork_grant", False)

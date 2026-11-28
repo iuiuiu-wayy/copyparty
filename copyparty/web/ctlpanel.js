@@ -1,7 +1,7 @@
 "use strict";
 
 // fork-only: trims the control panel's "other stuff" section, hides the π link, adds a
-// change-password form and an intro line on the share links page; see FORK.md.
+// change-password form, a "disk space" link and an intro line on the share links page; see FORK.md.
 // Loaded with --js-other /.cpr/w/ctlpanel.js, so it runs on every page except the file browser,
 // after the page's own scripts (splash.js has already set the translated labels, so ours stick).
 // The file browser gets --js-other too when --js-browser is empty; there it only hides the π.
@@ -196,9 +196,19 @@
     if (grants)
         grants.textContent = 'your grants';
 
+    // disk-space ticket 02: how full each disk is (/?disks), for anyone logged in (the
+    // logout button is there only then); the page shows the disks of the folders they administer
+    if (ebi('lo') && !ebi('yd')) {
+        var disks = document.createElement('a');
+        disks.id = 'yd';
+        disks.href = (window.SR || '') + '/?disks';
+        disks.textContent = 'disk space';
+        list.appendChild(disks);
+    }
+
     // where each entry goes; any other entry (#wb, #ag, whatever upstream adds) sits between
     // these and logout, in upstream's order. Reset client settings is dropped; /?reset still works
-    var ORDER = { y: 0, yg: 1, af: 2 },
+    var ORDER = { y: 0, yg: 1, yd: 2, af: 3 },
         OTHER = 5,
         LOGOUT = 9;
 

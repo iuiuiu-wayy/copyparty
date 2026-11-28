@@ -44,7 +44,10 @@ the Nextcloud features we want to keep:
 | a grid view like Drive | ✅ `web/forkgrid.js`, fork-only; a List / Grid toggle beside the breadcrumb switches to upstream's grid drawn as Drive's: a Folders section of compact tiles, then file cards with upstream's lazy thumbnails and a ⋮ each. Selecting, the selection bar, the row menu and opening work as in the list; the choice is upstream's `griden` setting, so it stays with the browser. [Its upstream edit](#upstream-edit-drive-ux-grid-view-forkgridjs) |
 | see who has access to a file, like Drive's details | ✅ `web/forkdetails.js`, fork-only; ⓘ in the top bar (and Details in the row menu and the selection bar's More) opens a Details panel that follows the selection: type, size, modified, location, and Who has access (your own grants and share links on the item, from the two json lists, each opening the Share dialog). A full-screen sheet on a phone; guests get no Who has access. [Its upstream edit](#upstream-edit-drive-ux-details-panel-forkdetailsjs) |
 | a breadcrumb with folder actions, like Drive | ✅ `web/forkcrumbs.js`, fork-only; the breadcrumb starts at My files (or Shared with me, or a share link's name for a guest), and its last part, the current folder, opens a menu: New folder, Upload files, Upload folder, Share, Rename, Download (zip), each only where allowed. Earlier parts navigate and stay drag-to-move drop targets; on a phone the parts between the first and the current folder sit in a "…" menu so the trail fits on one line beside the Layout toggle. [Its upstream edit](#upstream-edit-drive-ux-breadcrumb-and-folder-menu-forkcrumbsjs) |
-| a control panel that makes sense to users | ✅ `js-other: /.cpr/w/ctlpanel.js` + `nb`, fork-only; "other stuff:" becomes "more:" with "your share links", "your grants", recently added files, logout everywhere (in that order); "reset client settings", the `π` link and "powered by" are hidden; the share links page gets an intro line ("Links anyone can open without an account. Revoke one to stop it working."). With `chpw`, a "change password:" form of its own (new password, repeat, button) sits under "welcome back"; upstream's small "change password" link next to the login button is hidden |
+| a control panel that makes sense to users | ✅ `js-other: /.cpr/w/ctlpanel.js` + `nb`, fork-only; "other stuff:" becomes "more:" with "your share links", "your grants", "disk space", recently added files, logout everywhere (in that order); "reset client settings", the `π` link and "powered by" are hidden; the share links page gets an intro line ("Links anyone can open without an account. Revoke one to stop it working."). With `chpw`, a "change password:" form of its own (new password, repeat, button) sits under "welcome back"; upstream's small "change password" link next to the login button is hidden |
+| space on every disk, per account | ✅ config only: one nested `[/home/${u}/hdd1]` volume per extra disk gives every account a folder on it inside My files, created automatically, private, shareable with grants and share links ([tested config](#tested-config-users-groups-home-folders-shares), "more disks") |
+| see how full the disks are, like Drive's storage bar | ✅ fork-only, disk-space tickets 02-05: the nav's **Storage** section (`web/forkdisks.js`), one row per disk the account can upload to with a bar and "X free of Y"; a **disk space** page (`?disks`, `fork_disks.py`) from the control panel, every disk of the folders you administer and any whose folder is missing; an **email** when a disk is nearly full or missing (`contrib/fork-disk-alert/`, a systemd timer outside copyparty); upstream's metrics (`stats`), with `harden` only for `stats-u` accounts. [Its upstream edits](#upstream-edit-disk-space-page-and-storage-bar-fork_diskspy-forkdisksjs) |
+| pull a disk out while it runs | ✅ fork-only, config + systemd: copyparty keeps running and leaves that disk's folders out; a disk plugged back in comes back with one restart (`contrib/fork-disk-watch/`, [tested config](#tested-config-users-groups-home-folders-shares) "more disks", `docs/adr/0004`) |
 
 
 ## hardware limits (Pi Zero 2W)
@@ -204,6 +207,31 @@ gotchas found while testing:
   `-c /cfg/x.conf` loads it twice and fails with "multiple filesystem-paths mounted" (#1083)
 * volumes on tmpfs lose write access unless `wram` is set (safety check; irrelevant on a real disk)
 
+more disks: every home folder holds one folder per extra disk, a nested per-account volume with
+the home folder's rights (disk-space ticket 01; config only, held by `tests/test_fork_disk_homes.py`):
+
+```
+[/home/${u}/hdd1]  # My files/hdd1, on the second disk; one block per disk
+  /mnt/hdd1/copyparty/home/${u}
+  accs:
+    A: ${u}
+    ra: admin
+```
+
+* each account's folder on each disk is created at startup like the home folder; grants and
+  share links work from it as from the home folder; moving files between disks is a copy + delete
+* no `nospawn` on these: a disk that isn't there (its folder's parent can't be written, as in the
+  Pi service's read-only private view) leaves that folder out of My files and refuses uploads to
+  it, and nothing is created; `nospawn` would also stop new accounts' folders from appearing
+* a disk pulled out while copyparty runs: copyparty keeps running, with no restart. Upstream
+  already leaves a folder it can't read out of listings once its cache expires, refuses it, and
+  writes nothing in its place. A disk plugged back in, or removed safely, restarts copyparty
+  once, since the Pi service's private view of the disks is fixed at start
+  (`contrib/fork-disk-watch/`: a systemd unit per disk and a udev rule that mounts a disk when
+  it is plugged in; `docs/adr/0004`). Checked by `scripts/fork-unplug-check.sh` (a real
+  copyparty, a FUSE disk killed under it) and `tests/test_fork_disk_watch.py`; a kernel file
+  system (`ntfs3`) on a vanished USB device only by the README's hands-on check
+
 
 ## `harden`: fork-only hardening switch
 
@@ -221,6 +249,10 @@ exactly upstream's. Our config turns it on. With it on (see `docs/adr/0002`):
   in the handshake body) starts with a dot. Copyparty's own temporary names (`--dotpart`) still work
 * moving/copying a folder that holds dotfiles the account can't see at the source or the destination
   is refused (403) up front, so it never stops half-way
+* `/.cpr/metrics` (`--stats`) answers only accounts in `--stats-u`: upstream also lets in any
+  account with `a` on some volume, and with `A: ${u}` on home folders that is every account, who
+  could then read every volume's name, size and file count ([its upstream
+  edit](#upstream-edit-harden-metrics-only-for---stats-u))
 * not covered: SMB with `--smba` (upstream maps every SMB user to its internal superuser, which
   bypasses all permissions anyway); keep SMB off
 
@@ -316,6 +348,8 @@ every place this fork changes an upstream file, one section each below. On a mer
 | [drive-ux grid view (forkgrid.js)](#upstream-edit-drive-ux-grid-view-forkgridjs) | `scripts/sfx.ls` only |
 | [drive-ux Details panel (forkdetails.js)](#upstream-edit-drive-ux-details-panel-forkdetailsjs) | `scripts/sfx.ls` only |
 | [drive-ux breadcrumb and folder menu (forkcrumbs.js)](#upstream-edit-drive-ux-breadcrumb-and-folder-menu-forkcrumbsjs) | `scripts/sfx.ls` only |
+| [disk space page and storage bar (fork_disks.py, forkdisks.js)](#upstream-edit-disk-space-page-and-storage-bar-fork_diskspy-forkdisksjs) | `httpcli.py`, `scripts/sfx.ls` |
+| [`harden`: metrics only for `--stats-u`](#upstream-edit-harden-metrics-only-for---stats-u) | `metrics.py` |
 
 ### upstream edit: fork modules in the sfx build
 
@@ -385,7 +419,8 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **on conflict:** nothing to merge, but the script leans on upstream ids by name: `#cc` (the
   heading) followed by `div.agr`, whose entries `#y`, `#yg`, `#af`, `#k`, `#wb`, `#ag` and the
   `<form>` holding `#lo` it reorders, rebuilding the `<br />` between them (`#y` and `#yg` it
-  relabels "your share links" / "your grants"); on the share links page (`shares.html`,
+  relabels "your share links" / "your grants"), adding its own `#yd` "disk space" (`/?disks`)
+  where `#lo` is (logged in); on the share links page (`shares.html`,
   `<html id="ht_shr">`) it puts its intro `<p id="fork_shrintro">` before the first `<span>` in
   `#wrap` (upstream's "axs = perms" note); `#repl` (the `π` link)
   on every page with `{{ js }}`. The change-password form leans on `#x` (upstream's "change
@@ -1214,6 +1249,54 @@ every place this fork changes an upstream file, one section each below. On a mer
 - **known gaps:** the jump-to-path a11y link (`.ayjump`, `#path a:nth-last-child(2)`) finds
   nothing now (it was hidden already); a folder whose parent check is still loading shows no
   Rename until it answers
+
+### upstream edit: disk space page and storage bar (fork_disks.py, forkdisks.js)
+
+- **what it is:** how full each disk is (disk-space tickets 02 and 03, `.scratch/disk-space/`). A
+  disk is a filesystem: volumes are grouped by `st_dev` of their folder, and the numbers are the
+  whole filesystem's (`get_df`, statvfs, as upstream's "free of" line), not per volume or per
+  person; `vmaxb` is not shown. Upstream's `du_who` decides per volume who sees them; guests get
+  401; neither reply holds a server path.
+  - `GET /?disks&j`: `{"disks": [{"vols": ["/home/wayy/", "/family/"], "free", "total"}]}`, one
+    entry per filesystem behind the volumes the caller can write to (`cli.wvol`), sorted
+  - `GET /?disks`: a page (`web/disks.html`, styled like the grants page, `<meter>` bars, no
+    script of its own) with one row per filesystem behind the volumes the caller has `a` on
+    (`cli.avol`), and the volumes whose folder is missing ("is the disk unplugged?"). The
+    control panel links it as "disk space" (`ctlpanel.js`)
+  - the nav's Storage section (`web/forkdisks.js`): one row per entry of `?disks&j`, labelled
+    "My files" (the disk of `/home/<account>/`), else the folder under My files (`hdd1`), else
+    the volume's name; My files first, then by label; the other volumes on that disk in the
+    row's tooltip. A bar (`role=meter`), red from 90 % used, and "X free of Y" (util.js
+    `humansize`). Fetched at load, then with each `reload_browser` at most every 30 s, and at the
+    first one after an upload started (up2k reloads the list when uploads end). Hidden when the
+    reply is empty or fails; a guest makes no request
+- **upstream lines touched:** `httpcli.py`: one import line, and in `handle_get`'s account-wide
+  block two lines right after the `?grants` dispatch: `if "disks" in self.uparam: return
+  tx_disks(self)  # fork`. `scripts/sfx.ls`: `copyparty/fork_disks.py`, `web/disks.html`,
+  `web/forkdisks.js`; `fork_grants.py` adds the last two to upstream's `RES`; one line in
+  `fork-browser.js`'s `SCRIPTS`
+- **fork files:** `copyparty/fork_disks.py`, `copyparty/web/disks.html`,
+  `copyparty/web/forkdisks.js`, `tests/test_fork_disks.py`, `tests/e2e/specs/disks.spec.js`
+- **on conflict:** `httpcli.py`: keep the two lines after the `?grants` dispatch. `_du_ok` copies
+  `tx_browser`'s `du_iwho` check (keep in step). The bar leans on upstream names listed in
+  `tests/test_fork_disks.py` (`test_names_the_storage_bar_relies_on`): `reload_browser`,
+  `up2k_hooks`, `up2k.ui.addfile`, `humansize`, and `forkshell.js`'s `.fk-nav` and
+  `ui.shell.home`. After an upstream merge, run `./scripts/fork-e2e.sh specs/disks.spec.js`
+
+### upstream edit: `harden`: metrics only for `--stats-u`
+
+- **what it is:** with `harden`, `/.cpr/metrics` (`--stats`) answers only accounts in
+  `--stats-u` (disk-space ticket 05). Upstream also lets in any account with `a` on some volume
+  (`cli.avol`), and in this fork's config every account has `A` on its home folder, so anyone
+  could read every volume's name (so every account name), size and file count. Without `harden`,
+  upstream's rule. Outside, nginx strips logins on `/.cpr/` (`fork-https-outside.conf`), so
+  metrics only answer Inside
+- **upstream lines touched:** `metrics.py`: one import line, and `Metrics.tx`'s first check
+  becomes `if (not cli.avol or stats_u_only(args)) and cli.uname.lower() not in
+  args.stats_u_set:  # fork` (`stats_u_only` is `fork_harden.py`'s, true with `harden`)
+- **fork files:** `copyparty/fork_harden.py` (`stats_u_only`), `tests/test_fork_metrics.py`
+- **on conflict:** keep upstream's new check and add `or stats_u_only(args)` to its "no admin
+  volume" part; if upstream drops the `avol` rule itself, drop ours
 
 ## grants: fork-only folder sharing between accounts
 

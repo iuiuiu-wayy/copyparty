@@ -26,6 +26,7 @@
         'forkgrid.js',
         'forkdetails.js',
         'forkcrumbs.js',
+        'forkdisks.js',
     ];
 
     var me = document.currentScript;

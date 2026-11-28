@@ -1,0 +1,31 @@
+# fork-only (disk-space ticket 06): copyparty picks up an extra disk when it is
+# mounted again, and lets go of it on a safe removal. One instance per disk, named
+# after its mount point: fork-disk-watch@hdd1.service watches /mnt/hdd1.
+# Install steps in README.md next to this file.
+#
+# Why: copyparty's private view of the disks (TemporaryFileSystem= + BindPaths= in
+# copyparty.service.d/disks.conf) is fixed when it starts, so a disk mounted later
+# only shows up after a restart, and copyparty keeps holding a disk it has open
+# until it restarts. A disk that is simply pulled out needs nothing: copyparty
+# keeps running and leaves that disk's folders out (docs/adr/0004).
+[Unit]
+Description=fork-disk-watch: copyparty follows /mnt/%i coming and going
+BindsTo=mnt-%i.mount
+After=mnt-%i.mount
+# at boot copyparty starts after its disks anyway: ordered after this unit, the
+# restart below finds it not running yet and does nothing
+Before=copyparty.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# mounted (plugged back in, or mounted by hand): restart copyparty so it sees the
+# disk. --no-block: never wait on copyparty's job from inside this one
+ExecStart=/bin/systemctl --no-block try-restart copyparty.service
+# unmounted: if the disk is still there, this is a safe removal, so restart
+# copyparty to let go of it (the file system is then closed cleanly and the disk
+# can be pulled); if it is gone already (pulled out), do nothing
+ExecStop=/bin/sh -c 'what=$$(/bin/systemctl show -P What mnt-%i.mount); if [ -n "$$what" ] && [ -e "$$what" ]; then exec /bin/systemctl --no-block try-restart copyparty.service; fi'
+
+[Install]
+WantedBy=mnt-%i.mount

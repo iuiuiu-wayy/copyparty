@@ -35,6 +35,7 @@ from .__init__ import ANYWIN, PY2, RES, RESM, TYPE_CHECKING, EnvParams, unicode
 from .__version__ import S_VERSION
 from .authsrv import LEELOO_DALLAS, VFS  # typechk
 from .bos import bos
+from .fork_disks import tx_disks  # fork
 from .fork_grants import handle_egrant, handle_grant, http_request, tx_grants
 from .fork_harden import refuse_dot_name, refuse_short_key
 from .fork_shares import tx_shares_json
@@ -1584,6 +1585,9 @@ class HttpCli(object):
 
             if "grants" in self.uparam:
                 return tx_grants(self)  # fork
+
+            if "disks" in self.uparam:
+                return tx_disks(self)  # fork
 
             if "dls" in self.uparam:
                 return self.tx_dls()

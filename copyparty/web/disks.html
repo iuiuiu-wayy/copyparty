@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" id="ht_dk">
+<!-- fork-only: the disk space page (?disks); see FORK.md -->
+
+<head>
+	<meta charset="utf-8">
+	<title>{{ s_doctitle }}</title>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=0.8">
+	<meta name="robots" content="noindex, nofollow">
+	<meta name="theme-color" content="#{{ tcolor }}">
+	<link rel="stylesheet" media="screen" href="{{ r }}/.cpr/w/shares.css?_={{ ts }}">
+	<link rel="stylesheet" media="screen" href="{{ r }}/.cpr/w/ui.css?_={{ ts }}">
+{{ html_head }}
+</head>
+
+<body>
+	<div id="wrap">
+		<a href="{{ r }}/?disks">refresh</a>
+		<a href="{{ r }}/?h">control-panel</a>
+
+		<span>how full each disk is, for the folders you administer; one row per disk</span>
+
+		<table id="tab"><thead><tr>
+			<th>folders on it</th>
+			<th>used</th>
+			<th>free</th>
+			<th>size</th>
+			<th>full</th>
+		</tr></thead><tbody>
+		{%- for d in disks %}
+		<tr>
+			<td class="vols">{% for v in d.vols %}<a href="{{ r }}{{ v|e }}">{{ v|e }}</a>{% if not loop.last %}<br />{% endif %}{% endfor %}</td>
+			<td class="used">{{ d.hused }}</td>
+			<td class="free">{{ d.hfree }}</td>
+			<td class="total">{{ d.htotal }}</td>
+			<td class="pct"><meter min="0" max="100" low="75" high="90" optimum="0" value="{{ d.pct }}">{{ d.pct }}%</meter> {{ d.pct }}%</td>
+		</tr>
+		{%- endfor %}
+		</tbody></table>
+		{%- if not disks %}
+		(no disks to show)
+		{%- endif %}
+
+		{%- if missing %}
+		<h2>not found</h2>
+		<p>these folders aren't there; is the disk unplugged?</p>
+		<ul id="missing">
+		{%- for v in missing %}
+			<li>{{ v|e }}</li>
+		{%- endfor %}
+		</ul>
+		{%- endif %}
+	</div>
+	<a href="#" id="repl">π</a>
+	<script nonce="{{ js_nonce }}">
+
+var SR="{{ r }}",
+	JS_NONCE = "{{ js_nonce }}",
+	lang="{{ lang }}",
+	dutc={{ this.args.js_utc }},
+	dfavico="{{ favico }}";
+
+var STG = window.localStorage;
+document.documentElement.className = (STG && STG.cpp_thm) || "{{ this.args.theme }}";
+
+</script>
+<script nonce="{{ js_nonce }}" src="{{ r }}/.cpr/w/util.js?_={{ ts }}"></script>
+{%- if js %}
+<script nonce="{{ js_nonce }}" src="{{ js }}_={{ ts }}"></script>
+{%- endif %}
+<script nonce="{{ js_nonce }}">
+	Date.now();function jsldp(a,b){2!=window[a]&&alert("FATAL ERROR: cannot load "+b+".js due to unreliable network or broken reverse-proxy; try CTRL-SHIFT-R")}
+	jsldp("J_UTL","util");
+</script>
+</body>
+</html>

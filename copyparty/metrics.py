@@ -5,6 +5,7 @@ import json
 import time
 
 from .__init__ import TYPE_CHECKING
+from .fork_harden import stats_u_only  # fork
 from .util import Pebkac, get_df, unhumanize
 
 if TYPE_CHECKING:
@@ -18,7 +19,7 @@ class Metrics(object):
 
     def tx(self, cli: "HttpCli") -> bool:
         args = cli.args
-        if not cli.avol and cli.uname.lower() not in args.stats_u_set:
+        if (not cli.avol or stats_u_only(args)) and cli.uname.lower() not in args.stats_u_set:  # fork
             raise Pebkac(403, "'stats' not allowed for user " + cli.uname)
 
         if not args.stats:

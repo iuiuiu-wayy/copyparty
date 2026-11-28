@@ -36,6 +36,9 @@ python3 -m venv .venv && .venv/bin/pip install jinja2 strip_hints   # .venv is g
                                 # at desktop, phone and small phone; not in the pre-commit hook,
                                 # run it per ticket and after every upstream merge (~10 s)
 ./scripts/fork-e2e.sh --project chromium-phone specs/select.spec.js  # one size, one file
+./scripts/fork-unplug-check.sh  # a disk pulled out under a real copyparty (FUSE, no root); needs
+                                # sshfs; run it after changes to disks or volumes, and after every
+                                # upstream merge (~15 s)
 ```
 
 Writing or changing a fork file-browser script (`copyparty/web/*.js` loaded by `fork-browser.js`):

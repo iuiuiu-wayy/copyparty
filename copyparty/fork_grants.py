@@ -35,7 +35,7 @@ if True:  # pylint: disable=using-constant-test
 # drive-ux look (forkui.js, forkshell.js, forkacct.js, forknew.js, forklist.js,
 # forkrowmenu.js, forkviews.js, forksearch.js, forkshare.js, forkpeople.js, forkmove.js,
 # forkrename.js, forkview.js, forkgrid.js, forkdetails.js,
-# forkcrumbs.js); registered here so upstream's list in
+# forkcrumbs.js, forkdisks.js, and the disk space page disks.html); registered here so upstream's list in
 # __init__ stays as it is
 RES.update(
     (
@@ -61,6 +61,8 @@ RES.update(
         "web/forkgrid.js",
         "web/forkdetails.js",
         "web/forkcrumbs.js",
+        "web/forkdisks.js",
+        "web/disks.html",
     )
 )
 
