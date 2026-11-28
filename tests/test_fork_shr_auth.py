@@ -228,7 +228,7 @@ class TestForkShrAuth(unittest.TestCase):
         for path in ("shr/%s/?h" % (KEY,), "shr/?h"):
             st, h, b = self.req("GET", path, hck)
             self.assertNotIn(b"/priv", b, path)
-            self.assertNotIn("cppwd=x", h, path)  # still logged in elsewhere
+            self.assertNotIn("cppwd=x;", h, path)  # still logged in elsewhere
         self.assertEqual(self.get("shr/%s/f.txt" % (PKEY,), hck)[0], 401)
         self.assertEqual(self.get("shr/%s/f.txt" % (KEY,), hck), (200, b"d/f.txt"))
         self.assertEqual(self.get("priv/secret.txt", hck)[0], 200)
@@ -353,7 +353,7 @@ class TestForkShrAuth(unittest.TestCase):
             st, h, b = self.req("GET", self.url(".cpr/ui.css", q), hdr)
             self.assertEqual(st, 200, (hdr, q))
             self.assertFalse(self.logged_in(h), (hdr, q))
-            self.assertNotIn("cppwd=x", h, (hdr, q))  # still logged in elsewhere
+            self.assertNotIn("cppwd=x;", h, (hdr, q))  # still logged in elsewhere
         # a right and a wrong password get the same answer
         right = self.req("GET", ".cpr/ui.css?pw=pa")
         wrong = self.req("GET", ".cpr/ui.css?pw=nope")
@@ -393,7 +393,7 @@ class TestForkShrAuth(unittest.TestCase):
                 self.conn.freshen_pwd = 0
                 st, h, b = self.req("GET", f, hdr + self.ck(sck))
                 self.assertEqual((st, b), (200, b"d/f.txt"), hdr)
-                self.assertNotIn("cppwd=x", h, hdr)
+                self.assertNotIn("cppwd=x;", h, hdr)  # the cookie cleared, not a new one starting with x
         self.assertFalse(self.banned())
         # and the account login still opens nothing there
         st, h, b = self.req("GET", "shr/%s/?h" % (KEY,), basic("alice:pa") + self.ck(sck))
